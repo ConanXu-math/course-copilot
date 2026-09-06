@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.DS_Store
+.env
+.env.local
+*.log
+
+# 个人教材、原始需求和本地开发记录
+/要求.docx
+/面向机器学习的最优化方法-2023.11.pdf
+/design-qa.md
+/docs/implementation-plan.md
+/docs/personal-storage-plan.md
+/.course-copilot/

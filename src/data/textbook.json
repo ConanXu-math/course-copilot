@@ -1,0 +1,657 @@
+{
+  "id": "optimization-for-machine-learning",
+  "title": "面向机器学习的最优化方法",
+  "filename": "面向机器学习的最优化方法-2023.11.pdf",
+  "totalPages": 202,
+  "chapters": [
+    {
+      "id": "chapter-1",
+      "title": "机器学习中的最优化问题",
+      "page": 7,
+      "level": 0
+    },
+    {
+      "id": "chapter-2",
+      "title": "为什么学习最优化？",
+      "page": 8,
+      "level": 1
+    },
+    {
+      "id": "chapter-3",
+      "title": "机器学习中的最优化问题",
+      "page": 9,
+      "level": 1
+    },
+    {
+      "id": "chapter-4",
+      "title": "监督学习",
+      "page": 10,
+      "level": 2
+    },
+    {
+      "id": "chapter-5",
+      "title": "无监督学习",
+      "page": 12,
+      "level": 2
+    },
+    {
+      "id": "chapter-6",
+      "title": "深度学习",
+      "page": 14,
+      "level": 2
+    },
+    {
+      "id": "chapter-7",
+      "title": "强化学习",
+      "page": 15,
+      "level": 2
+    },
+    {
+      "id": "chapter-8",
+      "title": "本章小结",
+      "page": 17,
+      "level": 1
+    },
+    {
+      "id": "chapter-9",
+      "title": "最优化理论",
+      "page": 18,
+      "level": 0
+    },
+    {
+      "id": "chapter-10",
+      "title": "最优化问题基本形式",
+      "page": 18,
+      "level": 1
+    },
+    {
+      "id": "chapter-11",
+      "title": "拉格朗日对偶问题",
+      "page": 22,
+      "level": 1
+    },
+    {
+      "id": "chapter-12",
+      "title": "最优性条件与KKT条件",
+      "page": 26,
+      "level": 1
+    },
+    {
+      "id": "chapter-13",
+      "title": "应用案例",
+      "page": 35,
+      "level": 1
+    },
+    {
+      "id": "chapter-14",
+      "title": "Water-filling问题",
+      "page": 35,
+      "level": 2
+    },
+    {
+      "id": "chapter-15",
+      "title": "最小二乘问题",
+      "page": 37,
+      "level": 2
+    },
+    {
+      "id": "chapter-16",
+      "title": "本章小结",
+      "page": 38,
+      "level": 1
+    },
+    {
+      "id": "chapter-17",
+      "title": "习题",
+      "page": 38,
+      "level": 1
+    },
+    {
+      "id": "chapter-18",
+      "title": "梯度下降法",
+      "page": 40,
+      "level": 0
+    },
+    {
+      "id": "chapter-19",
+      "title": "为什么需要利用梯度信息？",
+      "page": 40,
+      "level": 1
+    },
+    {
+      "id": "chapter-20",
+      "title": "梯度下降法",
+      "page": 41,
+      "level": 1
+    },
+    {
+      "id": "chapter-21",
+      "title": "梯度下降法收敛性分析",
+      "page": 42,
+      "level": 1
+    },
+    {
+      "id": "chapter-22",
+      "title": "梯度类方法一般形式",
+      "page": 45,
+      "level": 1
+    },
+    {
+      "id": "chapter-23",
+      "title": "应用案例",
+      "page": 47,
+      "level": 1
+    },
+    {
+      "id": "chapter-24",
+      "title": "二次规划问题与最小二乘问题",
+      "page": 47,
+      "level": 2
+    },
+    {
+      "id": "chapter-25",
+      "title": "逻辑回归问题",
+      "page": 48,
+      "level": 2
+    },
+    {
+      "id": "chapter-26",
+      "title": "本章小结",
+      "page": 48,
+      "level": 1
+    },
+    {
+      "id": "chapter-27",
+      "title": "习题",
+      "page": 49,
+      "level": 1
+    },
+    {
+      "id": "chapter-28",
+      "title": "临近梯度法",
+      "page": 50,
+      "level": 0
+    },
+    {
+      "id": "chapter-29",
+      "title": "临近算子和临近梯度",
+      "page": 50,
+      "level": 1
+    },
+    {
+      "id": "chapter-30",
+      "title": "临近梯度",
+      "page": 59,
+      "level": 1
+    },
+    {
+      "id": "chapter-31",
+      "title": "临近梯度法",
+      "page": 60,
+      "level": 1
+    },
+    {
+      "id": "chapter-32",
+      "title": "广义临近梯度法",
+      "page": 62,
+      "level": 1
+    },
+    {
+      "id": "chapter-33",
+      "title": "Nesterov加速算法",
+      "page": 64,
+      "level": 1
+    },
+    {
+      "id": "chapter-34",
+      "title": "应用案例分析",
+      "page": 66,
+      "level": 1
+    },
+    {
+      "id": "chapter-35",
+      "title": "Lasso问题",
+      "page": 67,
+      "level": 2
+    },
+    {
+      "id": "chapter-36",
+      "title": "1-正则逻辑回归模型",
+      "page": 67,
+      "level": 2
+    },
+    {
+      "id": "chapter-37",
+      "title": "本章小结",
+      "page": 68,
+      "level": 1
+    },
+    {
+      "id": "chapter-38",
+      "title": "习题",
+      "page": 69,
+      "level": 1
+    },
+    {
+      "id": "chapter-39",
+      "title": "牛顿法和BFGS方法",
+      "page": 71,
+      "level": 0
+    },
+    {
+      "id": "chapter-40",
+      "title": "牛顿法",
+      "page": 71,
+      "level": 1
+    },
+    {
+      "id": "chapter-41",
+      "title": "BFGS方法",
+      "page": 72,
+      "level": 1
+    },
+    {
+      "id": "chapter-42",
+      "title": "有限内存的 BFGS 方法",
+      "page": 76,
+      "level": 1
+    },
+    {
+      "id": "chapter-43",
+      "title": "本章小结",
+      "page": 79,
+      "level": 1
+    },
+    {
+      "id": "chapter-44",
+      "title": "习题",
+      "page": 79,
+      "level": 1
+    },
+    {
+      "id": "chapter-45",
+      "title": "块坐标下降法",
+      "page": 81,
+      "level": 0
+    },
+    {
+      "id": "chapter-46",
+      "title": "块坐标下降法基本架构",
+      "page": 81,
+      "level": 1
+    },
+    {
+      "id": "chapter-47",
+      "title": "子问题更新机制",
+      "page": 82,
+      "level": 1
+    },
+    {
+      "id": "chapter-48",
+      "title": "块坐标选择机制",
+      "page": 84,
+      "level": 1
+    },
+    {
+      "id": "chapter-49",
+      "title": "系列块坐标下降法汇总",
+      "page": 87,
+      "level": 1
+    },
+    {
+      "id": "chapter-50",
+      "title": "机器学习问题案例分析",
+      "page": 89,
+      "level": 1
+    },
+    {
+      "id": "chapter-51",
+      "title": "1-正则逻辑回归模型",
+      "page": 89,
+      "level": 2
+    },
+    {
+      "id": "chapter-52",
+      "title": "非负矩阵分解模型",
+      "page": 90,
+      "level": 2
+    },
+    {
+      "id": "chapter-53",
+      "title": "本章小结",
+      "page": 93,
+      "level": 1
+    },
+    {
+      "id": "chapter-54",
+      "title": "习题",
+      "page": 93,
+      "level": 1
+    },
+    {
+      "id": "chapter-55",
+      "title": "随机梯度类方法",
+      "page": 95,
+      "level": 0
+    },
+    {
+      "id": "chapter-56",
+      "title": "经典随机梯度法",
+      "page": 96,
+      "level": 1
+    },
+    {
+      "id": "chapter-57",
+      "title": "随机平均梯度法",
+      "page": 98,
+      "level": 1
+    },
+    {
+      "id": "chapter-58",
+      "title": "方差减小随机梯度法",
+      "page": 99,
+      "level": 1
+    },
+    {
+      "id": "chapter-59",
+      "title": "随机梯度法的扩展讨论",
+      "page": 101,
+      "level": 1
+    },
+    {
+      "id": "chapter-60",
+      "title": "面向深度学习的随机优化方法",
+      "page": 102,
+      "level": 1
+    },
+    {
+      "id": "chapter-61",
+      "title": "动量加速随机梯度法",
+      "page": 103,
+      "level": 2
+    },
+    {
+      "id": "chapter-62",
+      "title": "Adagrad方法",
+      "page": 104,
+      "level": 2
+    },
+    {
+      "id": "chapter-63",
+      "title": "Adadelta方法",
+      "page": 105,
+      "level": 2
+    },
+    {
+      "id": "chapter-64",
+      "title": "RMSprop方法",
+      "page": 106,
+      "level": 2
+    },
+    {
+      "id": "chapter-65",
+      "title": "Adam方法",
+      "page": 106,
+      "level": 2
+    },
+    {
+      "id": "chapter-66",
+      "title": "本章小结",
+      "page": 107,
+      "level": 1
+    },
+    {
+      "id": "chapter-67",
+      "title": "习题",
+      "page": 108,
+      "level": 1
+    },
+    {
+      "id": "chapter-68",
+      "title": "增广拉格朗日方法和交替方向乘子法",
+      "page": 109,
+      "level": 0
+    },
+    {
+      "id": "chapter-69",
+      "title": "对偶上升方法",
+      "page": 110,
+      "level": 1
+    },
+    {
+      "id": "chapter-70",
+      "title": "增广拉格朗日方法",
+      "page": 111,
+      "level": 1
+    },
+    {
+      "id": "chapter-71",
+      "title": "交替方向乘子法",
+      "page": 112,
+      "level": 1
+    },
+    {
+      "id": "chapter-72",
+      "title": "应用案例",
+      "page": 115,
+      "level": 1
+    },
+    {
+      "id": "chapter-73",
+      "title": "一致性最优化问题",
+      "page": 115,
+      "level": 2
+    },
+    {
+      "id": "chapter-74",
+      "title": "带约束的凸优化问题",
+      "page": 117,
+      "level": 2
+    },
+    {
+      "id": "chapter-75",
+      "title": "Lasso模型",
+      "page": 117,
+      "level": 2
+    },
+    {
+      "id": "chapter-76",
+      "title": "本章小结",
+      "page": 118,
+      "level": 1
+    },
+    {
+      "id": "chapter-77",
+      "title": "习题",
+      "page": 119,
+      "level": 1
+    },
+    {
+      "id": "chapter-78",
+      "title": "双层规划",
+      "page": 120,
+      "level": 0
+    },
+    {
+      "id": "chapter-79",
+      "title": "双层规划基本知识",
+      "page": 120,
+      "level": 1
+    },
+    {
+      "id": "chapter-80",
+      "title": "基于梯度的逼近方法",
+      "page": 123,
+      "level": 1
+    },
+    {
+      "id": "chapter-81",
+      "title": "BDA/BMO算法",
+      "page": 125,
+      "level": 2
+    },
+    {
+      "id": "chapter-82",
+      "title": "IAPTT-GM算法",
+      "page": 127,
+      "level": 2
+    },
+    {
+      "id": "chapter-83",
+      "title": "基于价值函数的算法",
+      "page": 128,
+      "level": 1
+    },
+    {
+      "id": "chapter-84",
+      "title": "BVFSM罚方法",
+      "page": 128,
+      "level": 2
+    },
+    {
+      "id": "chapter-85",
+      "title": "应用案例",
+      "page": 130,
+      "level": 1
+    },
+    {
+      "id": "chapter-86",
+      "title": "超参优化",
+      "page": 130,
+      "level": 2
+    },
+    {
+      "id": "chapter-87",
+      "title": "核心集选择",
+      "page": 132,
+      "level": 2
+    },
+    {
+      "id": "chapter-88",
+      "title": "本章小结",
+      "page": 132,
+      "level": 1
+    },
+    {
+      "id": "chapter-89",
+      "title": "习题",
+      "page": 133,
+      "level": 1
+    },
+    {
+      "id": "chapter-90",
+      "title": "学习优化",
+      "page": 135,
+      "level": 0
+    },
+    {
+      "id": "chapter-91",
+      "title": "学习优化基本概念",
+      "page": 135,
+      "level": 1
+    },
+    {
+      "id": "chapter-92",
+      "title": "学习优化基本框架",
+      "page": 137,
+      "level": 1
+    },
+    {
+      "id": "chapter-93",
+      "title": "学习优化方法",
+      "page": 139,
+      "level": 1
+    },
+    {
+      "id": "chapter-94",
+      "title": "无模型学习优化方法",
+      "page": 140,
+      "level": 2
+    },
+    {
+      "id": "chapter-95",
+      "title": "基于模型的学习优化方法",
+      "page": 142,
+      "level": 2
+    },
+    {
+      "id": "chapter-96",
+      "title": "应用案例",
+      "page": 145,
+      "level": 1
+    },
+    {
+      "id": "chapter-97",
+      "title": "面向成像重建的PnP交替方向乘子法",
+      "page": 146,
+      "level": 2
+    },
+    {
+      "id": "chapter-98",
+      "title": "本章小结",
+      "page": 147,
+      "level": 1
+    },
+    {
+      "id": "chapter-99",
+      "title": "习题",
+      "page": 148,
+      "level": 1
+    },
+    {
+      "id": "chapter-100",
+      "title": "总结",
+      "page": 149,
+      "level": 0
+    },
+    {
+      "id": "chapter-101",
+      "title": "数学基础",
+      "page": 152,
+      "level": 0
+    },
+    {
+      "id": "chapter-102",
+      "title": "基础概念",
+      "page": 152,
+      "level": 1
+    },
+    {
+      "id": "chapter-103",
+      "title": "凸集与凸函数",
+      "page": 160,
+      "level": 1
+    },
+    {
+      "id": "chapter-104",
+      "title": "次梯度与次微分",
+      "page": 170,
+      "level": 1
+    },
+    {
+      "id": "chapter-105",
+      "title": "共轭函数",
+      "page": 172,
+      "level": 1
+    },
+    {
+      "id": "chapter-106",
+      "title": "李普希茨连续可微与强凸性质",
+      "page": 181,
+      "level": 1
+    },
+    {
+      "id": "chapter-107",
+      "title": "随机变量及性质",
+      "page": 191,
+      "level": 1
+    },
+    {
+      "id": "chapter-108",
+      "title": "习题",
+      "page": 195,
+      "level": 1
+    }
+  ],
+  "initialPage": 7
+}
