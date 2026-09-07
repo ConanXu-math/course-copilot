@@ -1,6 +1,7 @@
 import type { SkillEvent, SkillInfo, SkillRequest } from './types';
 
 export type AgentProvider = 'codex' | 'claude' | 'opencode';
+export interface ImageGenerationSettings { enabled: boolean; provider: string; model: string }
 
 export interface AgentStatus {
   connected: boolean;
@@ -14,7 +15,9 @@ export interface AgentStatus {
   note: string;
   busy: boolean;
   providers: { id: AgentProvider; name: string }[];
-  config: { provider: AgentProvider; executable: string; model: string; skillPaths: Record<string, string> };
+  config: { provider: AgentProvider; executable: string; model: string; skillPaths: Record<string, string>; imageGeneration: ImageGenerationSettings };
+  imageProviders: { id: string; name: string }[];
+  imageError: string;
   models: { id: string; name: string; isDefault: boolean }[];
   modelNote: string;
   login?: { loginId: string; authUrl?: string; command?: string; manual?: boolean };
@@ -58,7 +61,7 @@ export const connectAgent = (executable: string) => agentAction('connect', { exe
 export const disconnectAgent = () => agentAction('disconnect');
 export const startAgentLogin = () => agentAction('login');
 export const cancelAgentLogin = () => agentAction('login/cancel');
-export const saveAgentConfig = (value: { provider?: AgentProvider; model?: string; skillPaths?: Record<string, string> }) => agentAction('config', value);
+export const saveAgentConfig = (value: { provider?: AgentProvider; model?: string; skillPaths?: Record<string, string>; imageGeneration?: ImageGenerationSettings }) => agentAction('config', value);
 
 export function skillsFromStatus(status: AgentStatus): SkillInfo[] {
   return [

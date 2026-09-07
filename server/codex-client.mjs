@@ -60,7 +60,7 @@ export class CodexClient extends EventEmitter {
 
   async initialize() {
     await this.request('initialize', {
-      clientInfo: { name: 'course_copilot', title: '知页 · 课程 Copilot', version: '0.1.0' },
+      clientInfo: { name: 'course_copilot', title: 'VeryMath智慧教材', version: '0.1.0' },
     });
     this.send({ method: 'initialized' });
   }

@@ -1,4 +1,4 @@
-# 知页 · 课程 Copilot
+# VeryMath智慧教材
 
 个人部署的课程学习工作台：左侧阅读教材，右侧与 Copilot 交互，两条分隔线可以拖动。整个项目按三层分工：
 
@@ -92,6 +92,16 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 
 此处渲染数学公式；完整 `.tex` 文档的编译与 PDF 预览尚未接入。
 
+## 课程智能体的公共教学要求
+
+[`server/prompts/course-tutor.md`](server/prompts/course-tutor.md) 面向不同学科、学习阶段和部署者，定义课程智能体如何帮助学习：围绕课程目标组织内容、连接先修知识、依据教材讲解、按理解程度调整解释、提供练习反馈、衔接已有讨论，以及制作与课程目标一致的资料。交流语言跟随用户，不固定学校、教材或个人背景。
+
+三种 Agent 共用这份提示词，每次任务重新读取，修改后下一轮问答即可使用。具体课程、阅读位置和已有对话由本次请求提供，专项 Skill 补充相应方法。这些要求指导 Agent 的教学行为，不代表工作台已经具备自动测评或长期学习档案功能。
+
+可视化也是公共教学要求的一部分：图表有助于理解时，Agent 应主动采用关系图、流程图、时间线、对比表、曲线或示意图，并配合阅读指引与解释。界面当前支持 Markdown 表格、图片和知识结构资料；交互式演示取决于实际接入的工具及展示能力，提示词本身不会增加渲染组件。
+
+图表同时要求明确的视觉层次、克制且一致的配色、易读标签和充分留白。复杂讲解应分图呈现，在实际显示尺寸下检查效果；美化保持数据、几何比例和数学含义准确。
+
 ## 三人开发 Skill
 
 完整操作步骤、最小 `SKILL.md`、结果格式和新增按钮示例见 **[Skill 模块开发与接入](docs/skill-development.md)**。
@@ -113,7 +123,11 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 1. 打开页面右上角「工作区设置」，在「Coding Agent」中选择 Codex、Claude Code 或 OpenCode，再点击「连接本机…」。也可以在「程序位置」填写该 Agent 的完整程序路径。
 2. 已有登录和模型服务配置会自动复用。Codex 可在页面发起 ChatGPT 登录；Claude Code 使用它原生的登录流程，有登录链接时可以从页面打开；OpenCode 显示原生 `auth login` 命令，在部署电脑的终端完成后刷新状态。
 3. 在独立的「使用模型」中选择模型，或保留「跟随…设置」。Codex 和 OpenCode 的列表来自本机 Agent；Claude Code 提供由其原生程序解析的模型名称。关闭设置页即可自由提问。
-4. 在「接入 Skill」配置三位同学的技能路径，即可启用对应功能按钮。
+4. 在「接入 Skill」配置所需技能的路径，即可启用对应功能按钮。
+
+需要文生图时，在「文生图」中选择「优先文生图」、已有的 OpenAI 兼容图片服务和图片模型（例如 `gpt-image-2`），保存后下一次提问生效。图片服务来自本机 OpenCode 配置，API Key 从该服务配置或 OpenCode 已保存的 API 登录读取，不进入浏览器和课程设置。聊天 Agent 和聊天模型不变。服务必须实际支持 `POST /images/generations` 并返回 PNG 的 `b64_json`；模型列表可见不代表账号具备生图权限。403 权限错误需要由服务管理员开通对应账号或分组，修改提示词无法解决。
+
+Agent 在课程任务内调用本机 `/api/agent/image`，只提交绘图要求。后端使用独立的图片模型完成生成，将图片保存到当前课程的 `outputs` 并返回 Markdown 图片引用；前端沿用现有图片展示。没有运行中的课程任务时不能调用此入口，停止课程任务也会取消正在进行的图片请求。图片生成没有绕过个人环境隔离，也不依赖全局插件或 MCP。
 
 切换 Agent 会断开前一个连接，各自的模型和程序路径分别保存在个人设置中，Skill 路径共用。正在执行任务时，先停止任务或等待完成再切换。
 
@@ -124,6 +138,12 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 - `server/codex-client.mjs` 使用 [Codex App Server](https://developers.openai.com/codex/app-server/) 的本机标准输入输出接口。
 - `server/claude-client.mjs` 使用 [Claude Code 的非交互运行接口](https://code.claude.com/docs/en/headless)，读取原生流式消息。
 - `server/opencode-client.mjs` 启动 [OpenCode 本机服务](https://opencode.ai/docs/server/)，读取模型配置并通过原生 `run --attach` 执行课程请求。
+
+OpenCode 使用独立的课程配置目录 `<数据目录>/agent/opencode/config`，仅从个人 OpenCode 的 JSON/JSONC 配置接入模型服务、默认模型和模型服务启停设置；登录信息仍由 OpenCode 原生管理。不会继承个人配置中的插件、MCP、Skill 路径或教学指令，并关闭 `.claude`、`.agents` 的 Skill 自动扫描。课程固定使用 `course` Agent，关闭原生 Skill 自动选择和子代理调用，直接读取「接入 Skill」中提供的文件。未配置 Skill 时仍可正常自由问答、绘图和生成资料。
+
+连接时读取标准全局配置和 `OPENCODE_CONFIG` / `OPENCODE_CONFIG_CONTENT` 中的模型设置；配置中的相对文件引用保留原目录含义。修改个人模型配置后，在课程页面断开并重新连接即可生效。课程隔离设置只作用于本应用启动的进程，不修改其他用户的全局配置，也不是操作系统级文件沙箱。
+
+共享教学要求在 Codex 中作为开发者指令传入，在 Claude Code 中追加到系统提示，在 OpenCode 中放在本次任务正文之前。OpenCode 结束后还会读取本次原生会话的回答，补上流式消息漏掉的文字，并检查是否正常完成后再结束界面任务。
 
 课程对话保存在本应用的个人目录；Codex 使用临时会话，Claude Code 关闭本次会话的持久保存，OpenCode 在任务结束后删除本工作台刚创建的临时会话。原生 Agent 仍可能保存自己的运行日志。
 

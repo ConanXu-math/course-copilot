@@ -8,9 +8,9 @@ export async function readCommand(executable, args, cwd) {
   return execute(executable, args, { cwd, timeout: 20000, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' });
 }
 
-export function startProcess(executable, args, cwd) {
+export function startProcess(executable, args, cwd, env = process.env) {
   return spawn(executable, args, {
-    cwd, shell: false, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32',
+    cwd, env, shell: false, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32',
   });
 }
 
@@ -26,9 +26,9 @@ export function stopProcess(child) {
   child.once('close', () => clearTimeout(timer));
 }
 
-export async function* commandMessages(executable, args, cwd, prompt, signal, onStart) {
+export async function* commandMessages(executable, args, cwd, prompt, signal, onStart, env = process.env) {
   signal.throwIfAborted();
-  const child = startProcess(executable, args, cwd);
+  const child = startProcess(executable, args, cwd, env);
   onStart?.(child);
   const lines = createInterface({ input: child.stdout });
   let processError;

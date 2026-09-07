@@ -3,7 +3,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 import { extname, resolve, sep } from 'node:path';
-import { codingAgent, getAgentStatus, getSkillAvailability, connectAgent, disconnectAgent, configureAgent, startAgentLogin, cancelAgentLogin } from './agent.mjs';
+import { codingAgent, generateAgentImage, getAgentStatus, getSkillAvailability, connectAgent, disconnectAgent, configureAgent, startAgentLogin, cancelAgentLogin } from './agent.mjs';
 export { disposeAgent } from './agent.mjs';
 import { handleCourseApi } from './course-api.mjs';
 import { getCoursePaths, saveArtifact, outputUrl } from './course-store.mjs';
@@ -92,6 +92,8 @@ async function runAgent(req, res, request, skills) {
   try {
     for await (const rawEvent of codingAgent(request, {
       signal: controller.signal, ...paths, skills,
+      imageEndpoint: `http://127.0.0.1:${req.socket.localPort}/api/agent/image`,
+      report: event => writeEvent(res, event, controller.signal),
       outputUrl: (filename) => outputUrl(request.book.id, filename),
     })) {
       let event = rawEvent;
@@ -177,6 +179,15 @@ async function handleApi(req, res, next) {
   if (pathname === '/api/agent/status') {
     if (req.method !== 'GET') throw new HttpError(405, '此地址仅支持 GET。');
     return sendJson(res, 200, await getAgentStatus(true));
+  }
+  if (pathname === '/api/agent/image') {
+    if (req.method !== 'POST') throw new HttpError(405, '图片生成请使用 POST。');
+    if (!req.headers['content-type']?.includes('application/json')) throw new HttpError(415, '请以 JSON 格式发送绘图要求。');
+    const controller = new AbortController();
+    const stop = () => { if (!res.writableFinished) controller.abort(); };
+    req.on('aborted', stop); res.on('close', stop);
+    try { return sendJson(res, 200, await generateAgentImage(await readBody(req), controller.signal)); }
+    finally { req.off('aborted', stop); res.off('close', stop); }
   }
   const agentActions = {
     '/api/agent/connect': ['POST', connectAgent],

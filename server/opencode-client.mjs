@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { commandMessages, loginCommand, startProcess, stopProcess } from './agent-process.mjs';
+import { courseOpenCodeEnvironment } from './opencode-environment.mjs';
 
 export class OpenCodeClient extends EventEmitter {
   constructor(executable, cwd) {
@@ -10,7 +11,8 @@ export class OpenCodeClient extends EventEmitter {
   }
 
   async initialize() {
-    this.process = startProcess(this.executable, ['serve', '--hostname', '127.0.0.1', '--port', '0'], this.cwd);
+    this.env = await courseOpenCodeEnvironment(this.cwd);
+    this.process = startProcess(this.executable, ['serve', '--hostname', '127.0.0.1', '--port', '0'], this.cwd, this.env);
     this.process.stdin.end();
     this.process.on('close', () => {
       if (this.closed) return;
@@ -34,14 +36,15 @@ export class OpenCodeClient extends EventEmitter {
     if (!health.healthy) throw new Error('OpenCode 服务尚未就绪。');
   }
 
-  async request(path, { method = 'GET', body, cwd = this.cwd } = {}) {
+  async request(path, { method = 'GET', body, cwd = this.cwd, signal } = {}) {
     const url = new URL(path, this.url);
     url.searchParams.set('directory', cwd);
     const headers = { 'Content-Type': 'application/json' };
     if (process.env.OPENCODE_SERVER_PASSWORD) {
       headers.Authorization = `Basic ${Buffer.from(`${process.env.OPENCODE_SERVER_USERNAME || 'opencode'}:${process.env.OPENCODE_SERVER_PASSWORD}`).toString('base64')}`;
     }
-    const response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(20000) });
+    const timeout = AbortSignal.timeout(20000);
+    const response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
     if (!response.ok) throw new Error(`OpenCode 请求失败（${response.status}），请检查本机配置。`);
     return response.status === 204 ? undefined : response.json();
   }
@@ -74,23 +77,46 @@ export class OpenCodeClient extends EventEmitter {
 
   async *runCourse({ instructions, prompt, model, courseDir }, signal) {
     signal.throwIfAborted();
-    const session = await this.request('/session', { method: 'POST', cwd: courseDir, body: { title: '知页 · 课程学习' } });
+    const session = await this.request('/session', { method: 'POST', cwd: courseDir, body: { title: 'VeryMath智慧教材 · 课程学习' } });
     const abort = () => { void this.request(`/session/${session.id}/abort`, { method: 'POST', cwd: courseDir }).catch(() => {}); };
     signal.addEventListener('abort', abort, { once: true });
     let finished = false;
     try {
       signal.throwIfAborted();
-      const args = ['run', '--format', 'json', '--attach', this.url, '--dir', courseDir, '--session', session.id];
+      const args = ['run', '--agent', 'course', '--format', 'json', '--attach', this.url, '--dir', courseDir, '--session', session.id];
       if (model) args.push('--model', model);
-      let received = false;
-      for await (const message of commandMessages(this.executable, args, courseDir, `${instructions}\n\n${prompt}`, signal, child => { this.runningProcess = child; })) {
-        received = true;
-        if (message.type === 'text' && message.part?.text) yield { type: 'text', content: `${message.part.text}\n\n` };
+      const shownParts = new Set();
+      const textEvent = part => {
+        if (part?.type !== 'text' || !part.text?.trim() || shownParts.has(part.id)) return;
+        shownParts.add(part.id);
+        return { type: 'text', content: `${part.text}\n\n` };
+      };
+      for await (const message of commandMessages(this.executable, args, courseDir, `${instructions}\n\n${prompt}`, signal, child => { this.runningProcess = child; }, this.env)) {
+        if (message.type === 'text') {
+          const event = textEvent(message.part);
+          if (event) yield event;
+        }
         if (message.type === 'tool_use') yield { type: 'progress', message: 'OpenCode 正在读取或处理课程文件…' };
         if (message.type === 'step_start') yield { type: 'progress', message: 'OpenCode 正在处理课程要求…' };
         if (message.type === 'error') throw new Error(message.error?.data?.message || message.error?.message || 'OpenCode 未完成本次请求。');
       }
-      if (!received) throw new Error('没有收到 OpenCode 的回答，请检查登录和模型配置。');
+      // Attach mode can exit before its event stream delivers the final text.
+      // Read the saved messages before deleting this temporary session.
+      const messages = await this.request(`/session/${session.id}/message`, { cwd: courseDir, signal });
+      const replies = messages.filter(message => message.info.role === 'assistant');
+      for (const reply of replies) {
+        for (const part of reply.parts) {
+          const event = textEvent(part);
+          if (event) yield event;
+        }
+      }
+      const finalReply = replies.at(-1);
+      const error = finalReply?.info.error;
+      if (error) throw new Error(error.data?.message || error.message || 'OpenCode 未完成本次请求。');
+      if (finalReply?.info.finish === 'length') throw new Error('OpenCode 的回答达到模型输出上限，尚未讲完，可以继续追问。');
+      if (!finalReply?.info.time.completed || finalReply.info.finish !== 'stop') throw new Error('OpenCode 尚未返回完整回答，请重新发送本次问题。');
+      if (!finalReply.parts.some(part => part.type === 'text' && part.text?.trim())) throw new Error('OpenCode 结束了处理，但没有给出回答，请重新发送本次问题。');
+      signal.throwIfAborted();
       finished = true;
       yield { type: 'done' };
     } finally {
