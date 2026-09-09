@@ -2,6 +2,7 @@ import { access, readFile, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { delimiter, isAbsolute, resolve } from 'node:path';
 import { CodexClient } from './codex-client.mjs';
 import { ClaudeClient } from './claude-client.mjs';
@@ -281,6 +282,7 @@ export async function* codingAgent(request, context) {
     const instructions = `${teachingInstructions}
 本次课程任务的文件与工具约定：
 当前课程：${request.book.title}。原始教材：${context.textbookPath}。解析内容：${context.textbookDir}。
+可用的本机 Node.js：${process.execPath}。教材读取工具：${fileURLToPath(new URL('../skills/textbook-parse/scripts/read-pages.mjs', import.meta.url))}，接受 --pdf、--start、--end、--out 参数，返回正文、页码目录和原页 PNG；--out 使用当前课程 outputs 下的子目录。
 只在当前课程的 outputs 目录保存生成文件，不修改教材、阅读记录或对话文件，不执行与用户学习要求无关的系统操作。
 不调用子代理。需要用户补充信息时直接在回答中提问。不要要求用户在当前界面执行不存在的交互。
 用户选定的 Skill：${skill ? `${skill.title}，${skill.path}。请先读取并使用它。` : '自由提问，可根据需要读取已配置的 Skill。'}

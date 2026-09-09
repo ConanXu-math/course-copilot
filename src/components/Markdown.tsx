@@ -1,8 +1,22 @@
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import type { Book } from '../lib/types';
+import MathFormula, { LatexCode, mathText, rehypeMathSource } from './MathFormula';
+
+const mathComponents: Components = {
+  span: ({ node, children, ...props }) => typeof node?.properties.dataLatex === 'string'
+    ? <MathFormula source={node.properties.dataLatex} display={props.className === 'math-source-block'}>{children}</MathFormula>
+    : <span {...props}>{children}</span>,
+  pre: ({ node, children, ...props }) => {
+    const code = node?.children[0];
+    const classes = code?.type === 'element' ? code.properties.className : undefined;
+    return code && Array.isArray(classes) && classes.some(name => ['language-latex', 'language-tex'].includes(String(name)))
+      ? <LatexCode source={mathText(code).replace(/\n$/, '')}/>
+      : <pre {...props}>{children}</pre>;
+  },
+};
 
 function repairMathFence(content: string) {
   let codeFence = '';
@@ -47,7 +61,8 @@ export default function Markdown({ children, book }: { children: string; book?: 
     if (relative.split('/').some(part => !part || part === '.' || part === '..')) return undefined;
     return `/api/courses/${encodeURIComponent(book.id)}/outputs/${relative.split('/').map(encodeURIComponent).join('/')}${suffix}`;
   }
-  return <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{
+  return <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeMathSource, rehypeKatex]} components={{
+    ...mathComponents,
     a: ({ children, href }) => <a href={courseUrl(href)} target="_blank" rel="noreferrer">{children}</a>,
     img: ({ src, alt }) => <img src={courseUrl(src)} alt={alt || ''} loading="lazy" />,
   }}>{content}</ReactMarkdown></div>;

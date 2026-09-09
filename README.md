@@ -10,9 +10,9 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 个人课程目录：原始教材、解析内容、阅读记录、对话、生成资料
 ```
 
-本机 HTTP 服务负责传递请求、返回进度、读写文件和提供 PDF／生成文件。教学任务统一交给 `server/agent.mjs` 中的 Coding Agent。六个按钮表达操作意图，Agent 可以组合多个 Skill。
+本机 HTTP 服务负责传递请求、返回进度、读写文件和提供 PDF／生成文件。教学任务统一交给 `server/agent.mjs` 中的 Coding Agent。七个专项 Skill 与自由问答按钮表达操作意图，Agent 可以组合多个 Skill。
 
-**支持个人部署，在页面中选择 Codex、Claude Code 或 OpenCode，再选择模型和填写 Skill 路径。** 每个人使用自己电脑上的 Agent 安装和账号。自由问答通过所选 Agent 执行；五个专项 Skill 需要分别配置可读的 `SKILL.md`。路径已配置只代表文件可读，不代表该 Skill 已执行成功。
+**支持个人部署，在页面中选择 Codex、Claude Code 或 OpenCode，再选择模型和填写 Skill 路径。** 每个人使用自己电脑上的 Agent 安装和账号。自由问答通过所选 Agent 执行；教材解析、讲解内容、知识点出题已提供随项目运行的 Demo Skill，另外四个专项 Skill 保留接入位置。路径已配置只代表文件可读，不代表该 Skill 已执行成功。
 
 ## 运行
 
@@ -62,7 +62,7 @@ npm start
         │   ├── course.json         # 教材名称、页数
         │   ├── outline.json        # 章节目录
         │   ├── pages/              # 已阅读页面的正文
-        │   └── images/             # 留给解析 Skill 保存图片
+        │   └── images/             # 教材图片预留目录；当前解析 Demo 写入 outputs
         ├── reading.json            # 页码、书签、笔记数据、当前对话
         ├── conversations/          # 每段对话分别保存
         └── outputs/                # 图谱、课件、视频和结果描述
@@ -106,9 +106,11 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 
 完整操作步骤、最小 `SKILL.md`、结果格式和新增按钮示例见 **[Skill 模块开发与接入](docs/skill-development.md)**。
 
+同学 A 的三个 Demo 已放在 [`skills/textbook-parse`](skills/textbook-parse/SKILL.md)、[`skills/explain`](skills/explain/SKILL.md)、[`skills/quiz`](skills/quiz/SKILL.md)，默认路径按项目所在位置计算。连接 Agent 后即可选择对应按钮。演示步骤与已知范围见 [同学 A Demo](docs/demo-a.md)。
+
 | 负责方向 | 配置文件 | 对应功能 |
 | --- | --- | --- |
-| A：内容讲解 | `server/skills/tutoring.mjs` | 讲解内容；自由问答由 Agent 处理 |
+| A：教材、讲解与练习 | `server/skills/tutoring.mjs` | 教材解析、讲解内容、知识点出题；自由问答由 Agent 处理 |
 | B：知识结构 | `server/skills/structure.mjs` | 思维导图、知识图谱 |
 | C：教学材料 | `server/skills/materials.mjs` | 课件、讲解视频 |
 
@@ -116,7 +118,7 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 
 这些配置描述技能位置和用途，不运行模型。Agent 读取 Skill 指令，使用课程目录中的真实材料完成任务，结果存入该课程的 `outputs`。各 Skill 共用课程文件，无须修改各自的前端按钮。
 
-接入上表的现有功能时，开发者只需准备自己的 Skill 目录并在设置中填写路径。新增「习题生成」之类的按钮时，需要同时更新功能列表、`SkillId`、前端按钮和设置页分组；具体文件与代码在开发指南中列出。当前不会仅通过新增一个目录就自动出现按钮。
+接入上表的现有功能时，开发者只需准备自己的 Skill 目录并在设置中填写路径。新增其他功能按钮时，需要同时更新功能列表、`SkillId`、前端按钮和设置页分组；具体文件与代码在开发指南中列出。当前不会仅通过新增一个目录就自动出现按钮。
 
 ## 连接 Coding Agent
 

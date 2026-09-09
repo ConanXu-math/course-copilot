@@ -10,7 +10,7 @@ interface Props {
 }
 
 const groups = [
-  { name: '讲解与问答', owner: '同学 A', ids: ['explain'] },
+  { name: '讲解与问答', owner: '同学 A', ids: ['textbook-parse', 'explain', 'quiz'] },
   { name: '知识结构', owner: '同学 B', ids: ['mindmap', 'knowledge-graph'] },
   { name: '课件与视频', owner: '同学 C', ids: ['slides', 'video'] },
 ];
@@ -176,7 +176,7 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
     </details>
 
     <details className="agent-details skill-paths">
-      <summary>接入 Skill<span>{configured} / {status?.skills.length || 5} 已配置</span><ChevronDown size={15}/></summary>
+      <summary>接入 Skill<span>{configured} / {status?.skills.length ?? groups.reduce((total, group) => total + group.ids.length, 0)} 已配置</span><ChevronDown size={15}/></summary>
       {groups.map(group => <fieldset key={group.name} disabled={locked}>
         <legend>{group.name}<span>{group.owner}</span></legend>
         {group.ids.map(id => {

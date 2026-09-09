@@ -8,7 +8,7 @@
 
 | 方向 | 功能 ID | 功能列表所在文件 | 常用结果类型 |
 | --- | --- | --- | --- |
-| 讲解与问答 | `explain` | [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) | 普通回答或 `markdown` |
+| 教材、讲解与练习 | `textbook-parse`、`explain`、`quiz` | [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) | 普通回答或 `markdown` |
 | 知识结构 | `mindmap`、`knowledge-graph` | [`server/skills/structure.mjs`](../server/skills/structure.mjs) | `mindmap`、`knowledge-graph` |
 | 课件与视频 | `slides`、`video` | [`server/skills/materials.mjs`](../server/skills/materials.mjs) | `slides`、`video` 或 `file` |
 
@@ -72,7 +72,7 @@ description: 根据当前教材页、章节或选中文字解释概念与公式�
 使用脚本前先确认所需依赖可用；步骤失败时说明原因，不声称生成成功。
 ````
 
-这是供开发者继续完善的起点，仓库没有默认启用一份占位 Skill。若使用 `references/` 或 `scripts/`，在 `SKILL.md` 中写明何时读取、如何执行以及需要的依赖。程序应接收本次任务给出的输入和输出路径，不固定某位开发者的用户名、教材位置或账号。
+上例展示基本接入方法。仓库已提供教材解析、讲解和出题的实际 Demo Skill，并设置默认路径，可在此基础上继续完善。若使用 `references/` 或 `scripts/`，在 `SKILL.md` 中写明何时读取、如何执行以及需要的依赖。程序应接收本次任务给出的输入和输出路径，不固定某位开发者的用户名、教材位置或账号。
 
 接入操作：
 
@@ -161,51 +161,16 @@ export const tutoringSkills = [
 
 ## 6. 新增一个功能按钮
 
-以新增 `quiz`「生成习题」为例，使用现有的 `markdown` 展示练习题。当前功能列表是明确写在源码中的，需要同时修改以下四处：
+当前已有的 `quiz`「知识点出题」和 `textbook-parse`「教材解析」无需再添加按钮。新增其他功能时，需要同时更新以下位置：
 
 | 修改位置 | 添加内容 |
 | --- | --- |
-| [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) 的 `tutoringSkills` | 功能的 `id`、`title`、`description`、`path` |
-| [`src/lib/types.ts`](../src/lib/types.ts) 的 `SkillId` | 增加 `'quiz'` |
-| [`src/components/CopilotPanel.tsx`](../src/components/CopilotPanel.tsx) 的 `tools` | 新按钮的名称、图标和初始要求 |
-| [`src/components/AgentConnection.tsx`](../src/components/AgentConnection.tsx) 的 `groups` | 把 `quiz` 放进对应分组，使设置页出现路径输入框 |
+| 对应的 `server/skills/*.mjs` | 功能的唯一 ID、名称、说明和默认 Skill 路径 |
+| `src/lib/types.ts` | 在 `SkillId` 中增加该 ID |
+| `src/components/CopilotPanel.tsx` | 添加名称、图标和初始要求 |
+| `src/components/AgentConnection.tsx` | 将 ID 放入对应分组，显示路径输入框 |
 
-服务端条目添加到已有数组中：
-
-```js
-{
-  id: 'quiz',
-  title: '生成习题',
-  description: '围绕当前教材内容生成练习题、参考答案和解析。',
-  path: null,
-}
-```
-
-类型增加一个成员，保留原有成员：
-
-```ts
-export type SkillId = 'chat' | 'explain' | 'mindmap' | 'knowledge-graph' | 'slides' | 'video' | 'quiz';
-```
-
-前端 `tools` 数组添加条目，`BookOpen` 已在该文件导入：
-
-```ts
-{
-  id: 'quiz',
-  title: '生成习题',
-  subtitle: '检查理解程度',
-  icon: BookOpen,
-  prompt: '请根据当前内容生成练习题，附参考答案与解析，并保存为学习资料。',
-},
-```
-
-设置页对应分组修改为：
-
-```ts
-{ name: '讲解与问答', owner: '同学 A', ids: ['explain', 'quiz'] },
-```
-
-四处使用同一个唯一 ID，并在自己的 `skills/quiz/SKILL.md` 中写明实际方法。`path: null` 表示先由每位部署者在设置页选择真实路径；也可以采用上一节的方式，为随仓库提供的 Skill 设置默认路径。
+普通学习资料可以继续使用 `markdown`，无须添加新的展示类型。需兼容旧浏览器记录时，也要在 `src/lib/storage.ts` 的记录识别中加入对应 ID。
 
 如果新功能确实需要独立的目录列表文件，例如 `server/skills/assessment.mjs`，可以在那里导出 `assessmentSkills`。再在 `server/agent.mjs` 导入它并展开到 `skillsCatalog` 中；前端三处修改仍然需要完成。已有三组功能的开发者通常直接在自己负责的文件中加条目即可。
 

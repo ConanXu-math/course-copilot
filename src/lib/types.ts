@@ -1,4 +1,4 @@
-export type SkillId = 'chat' | 'explain' | 'mindmap' | 'knowledge-graph' | 'slides' | 'video';
+export type SkillId = 'chat' | 'textbook-parse' | 'explain' | 'quiz' | 'mindmap' | 'knowledge-graph' | 'slides' | 'video';
 export type Scope = 'page' | 'chapter' | 'selection' | 'book';
 
 export interface Chapter {
