@@ -62,7 +62,8 @@ export interface SkillRequest {
 export type Artifact =
   | { id: string; title: string; kind: 'markdown'; content: string }
   | { id: string; title: string; kind: 'mindmap' | 'knowledge-graph'; nodes: { id: string; label: string; page?: number }[]; edges: { source: string; target: string; label?: string }[] }
-  | { id: string; title: string; kind: 'slides'; slides: { title: string; content: string }[]; url?: string }
+  | { id: string; title: string; kind: 'slides'; slides?: { title: string; content: string }[]; url?: string;
+      chapters?: { title: string; url: string; filename?: string }[]; sourceUrl?: string }
   | { id: string; title: string; kind: 'video' | 'file'; url: string; filename?: string };
 
 export type SkillEvent =

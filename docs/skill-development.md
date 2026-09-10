@@ -149,11 +149,13 @@ export const tutoringSkills = [
 | --- | --- | --- |
 | `markdown` | `content` 字符串 | 带公式的文字资料 |
 | `mindmap`、`knowledge-graph` | `nodes: [{id, label, page?}]`、`edges: [{source, target, label?}]` | 可移动缩放的图；节点可跳到教材页码 |
-| `slides` | `slides: [{title, content}]`，可选 `url` | 逐页课件；可下载实际生成的附件 |
+| `slides` | PDF 课件使用 `chapters: [{title, url, filename?}]`，可选 `sourceUrl`；文字课件使用 `slides: [{title, content}]`，可选 `url` | 章节 PDF 预览、下载和源文件 ZIP；逐页文字课件 |
 | `video` | `url`，可选 `filename` | 视频播放 |
 | `file` | `url`，可选 `filename` | 文件下载 |
 
 所有结果还需要 `id` 和 `title`。图的节点 ID 应唯一，连线端点应引用存在的节点，`page` 使用 PDF 页序。`slides` 的正文和文字资料一样支持 Markdown 与数学公式。
+
+仓库中的 [`textbook-to-ppt`](../skills/textbook-to-ppt/SKILL.md) 使用 LaTeX Beamer 生成章节 PDF，并在 [`materials.mjs`](../server/skills/materials.mjs) 配置默认路径。具体输入范围、编译方式和返回示例见 [课件接入说明](../skills/textbook-to-ppt/references/course-copilot.md)。Agent 需要在部署机器上调用已安装的 XeLaTeX。各章文件地址与源文件 ZIP 地址都经过课程输出目录的路径转换和文件存在性检查。源文件 ZIP 收录可重新编译的项目文件。
 
 `url` 指向已经存在的课程输出文件，可以使用 `outputs` 下的相对路径或完整本地路径；服务会转换成当前课程的浏览器地址。远程下载链接不能直接作为这里的文件结果。不要返回并未生成的 PDF、PPTX 或视频地址。
 

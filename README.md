@@ -12,7 +12,7 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 
 本机 HTTP 服务负责传递请求、返回进度、读写文件和提供 PDF／生成文件。教学任务统一交给 `server/agent.mjs` 中的 Coding Agent。七个专项 Skill 与自由问答按钮表达操作意图，Agent 可以组合多个 Skill。
 
-**支持个人部署，在页面中选择 Codex、Claude Code 或 OpenCode，再选择模型和填写 Skill 路径。** 每个人使用自己电脑上的 Agent 安装和账号。自由问答通过所选 Agent 执行；教材解析、讲解内容、知识点出题已提供随项目运行的 Demo Skill，另外四个专项 Skill 保留接入位置。路径已配置只代表文件可读，不代表该 Skill 已执行成功。
+**支持个人部署，在页面中选择 Codex、Claude Code 或 OpenCode，再选择模型和填写 Skill 路径。** 每个人使用自己电脑上的 Agent 安装和账号。教材解析、讲解内容、知识点出题和 LaTeX Beamer 课件提供随项目运行的 Skill。思维导图、知识图谱和讲解视频提供自定义 Skill 接入位置。各项任务通过所选 Agent 执行。
 
 ## 运行
 
@@ -88,9 +88,19 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 
 ## LaTeX 公式
 
-对话、文字资料和课件共用同一个公式渲染组件。支持 `$...$` 与 `\(...\)` 行内公式，以及 `$$...$$` 与 `\[...\]` 独立公式。分式、上下标、求和、矩阵等由 KaTeX 显示；较长公式可横向滚动。代码中的原始 LaTeX 保留为代码，不会被误转换。
+对话、文字资料和文字课件共用 KaTeX 公式渲染组件，支持行内公式和独立公式。分式、上下标、求和与矩阵按数学排版显示，较长公式可横向滚动。代码块中的 LaTeX 以源码形式展示。
 
-此处渲染数学公式；完整 `.tex` 文档的编译与 PDF 预览尚未接入。
+「生成课件」通过 LaTeX Beamer 编译 PDF，学习资料支持章节 PDF 预览与源文件下载。
+
+## 教材 PDF 课件
+
+[`skills/textbook-to-ppt`](skills/textbook-to-ppt/SKILL.md) 随项目接入「生成课件」。连接 Agent 后，选择当前页、选中内容、当前章节或整本教材，并发送要求。整书任务按教材章节分别生成 PDF；章内按教材小节编排，默认采用 16:9 页面。定义、定理、证明、算法和例题按教材内容展开，页面注明教材出处。
+
+部署电脑需要可用的 XeLaTeX，以及 Beamer、ctex、数学宏包和中文字体。可使用包含这些组件的 TeX Live 或 MacTeX 安装；程序从 PATH 查找 XeLaTeX，macOS 也查找 `/Library/TeX/texbin/xelatex`。Agent 直接运行编译命令并检查生成页面，依赖缺失时会报告具体原因。
+
+生成结果保存在当前课程的 `outputs/slides-<结果ID>/`。学习资料中的课件提供章节选择、PDF 预览、PDF 下载和 LaTeX 源文件 ZIP 下载。源文件包含公共排版设置、各章编译入口、小节正文及引用图片，支持教师选取小节后重新组合编译。PDF 预览使用浏览器的 PDF 阅读器，工具栏也提供独立打开文件的链接。
+
+默认 Skill 路径由项目位置计算。个人设置中已有的路径配置继续生效；曾保存过空路径的用户，可在「工作区设置 → 接入 Skill → 生成课件」填入项目中 `skills/textbook-to-ppt/SKILL.md` 的完整路径。
 
 ## 课程智能体的公共教学要求
 
@@ -199,7 +209,7 @@ OpenCode 使用独立的课程配置目录 `<数据目录>/agent/opencode/config
 | --- | --- |
 | `markdown` | `content` 正文 |
 | `mindmap` / `knowledge-graph` | `nodes` 与 `edges`，节点可带教材页码 |
-| `slides` | 每页 `title` 与 `content`，可选下载 `url` |
+| `slides` | PDF 课件使用 `chapters: [{title, url, filename?}]`，可附源文件 ZIP 的 `sourceUrl`；文字课件使用 `slides: [{title, content}]`，可附 `url` |
 | `video` / `file` | 文件 `url`，可选 `filename` |
 
 所有结果需要 `id`、`title`、`kind`；具体字段见 `src/lib/types.ts`。未连接 Agent 时返回 HTTP 503，选定的 Skill 未配置时返回 HTTP 501；任务没有返回 `done` 就结束时显示未完成。

@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Download, FileText, FolderOpen, ExternalLink, Wa
 import type { Artifact, Book } from '../lib/types';
 import Markdown from './Markdown';
 import '@xyflow/react/dist/style.css';
+import './pdf-slides.css';
 
 function safeUrl(value: string) {
   try { const url = new URL(value, window.location.href); return ['http:', 'https:', 'blob:'].includes(url.protocol) ? url.href : undefined; }
@@ -30,10 +31,35 @@ function GraphView({ artifact, onPage, book }: { book?: Book; artifact: Extract<
 
 function SlidesView({ artifact, book }: {artifact:Extract<Artifact,{kind:'slides'}>;book?:Book}) {
   const [slide,setSlide] = useState(0);
-  const currentIndex = Math.min(slide, Math.max(0, artifact.slides.length - 1));
-  const current = artifact.slides[currentIndex];
+  const slides = artifact.slides || [];
+  const currentIndex = Math.min(slide, Math.max(0, slides.length - 1));
+  const current = slides[currentIndex];
   if (!current) return <div className="artifact-empty">这份课件还没有页面。</div>;
-  return <div className="slides-view"><div className="slide-paper"><span className="eyebrow">{artifact.title}</span><h1>{current.title}</h1><Markdown book={book}>{current.content}</Markdown><span className="slide-number">{String(currentIndex+1).padStart(2,'0')}</span></div><div className="slide-controls"><button className="icon-button" disabled={!currentIndex} onClick={()=>setSlide(currentIndex-1)} aria-label="上一张课件"><ArrowLeft size={18}/></button><span>{currentIndex+1} / {artifact.slides.length}</span><button className="icon-button" disabled={currentIndex===artifact.slides.length-1} onClick={()=>setSlide(currentIndex+1)} aria-label="下一张课件"><ArrowRight size={18}/></button></div></div>;
+  return <div className="slides-view"><div className="slide-paper"><span className="eyebrow">{artifact.title}</span><h1>{current.title}</h1><Markdown book={book}>{current.content}</Markdown><span className="slide-number">{String(currentIndex+1).padStart(2,'0')}</span></div><div className="slide-controls"><button className="icon-button" disabled={!currentIndex} onClick={()=>setSlide(currentIndex-1)} aria-label="上一张课件"><ArrowLeft size={18}/></button><span>{currentIndex+1} / {slides.length}</span><button className="icon-button" disabled={currentIndex===slides.length-1} onClick={()=>setSlide(currentIndex+1)} aria-label="下一张课件"><ArrowRight size={18}/></button></div></div>;
+}
+
+function PdfSlidesView({ artifact }: { artifact: Extract<Artifact, { kind: 'slides' }> }) {
+  const [chapterIndex, setChapterIndex] = useState(0);
+  const chapters = artifact.chapters || [];
+  const currentIndex = Math.min(chapterIndex, Math.max(0, chapters.length - 1));
+  const chapter = chapters[currentIndex];
+  const url = chapter && safeUrl(chapter.url);
+  const sourceUrl = artifact.sourceUrl && safeUrl(artifact.sourceUrl);
+  return <div className="pdf-slides-view">
+    <div className="pdf-slides-toolbar">
+      <label>章节
+        <select aria-label="选择课件章节" value={currentIndex} onChange={event => setChapterIndex(Number(event.target.value))}>
+          {chapters.map((item, index) => <option key={`${item.url}-${index}`} value={index}>{item.title}</option>)}
+        </select>
+      </label>
+      {url && <>
+        <a className="text-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>打开 PDF</a>
+        <a className="text-button" href={url} download={chapter.filename || `${chapter.title}.pdf`}><Download size={15}/>下载 PDF</a>
+      </>}
+      {sourceUrl && <a className="text-button" href={sourceUrl} download="sources.zip"><Download size={15}/>LaTeX 源文件</a>}
+    </div>
+    {url ? <iframe key={url} className="pdf-slides-frame" src={url} title={chapter.title}/> : <div className="artifact-empty">课件 PDF 地址无效，请重新生成。</div>}
+  </div>;
 }
 
 export default function ArtifactViewer({artifact,onPage,book}:{artifact:Artifact;onPage:(page:number)=>void;book?:Book}) {
@@ -46,7 +72,7 @@ export default function ArtifactViewer({artifact,onPage,book}:{artifact:Artifact
   return <section className="artifact-viewer"><div className="artifact-toolbar"><span><FileText size={16}/>{artifact.title}</span>{artifact.kind==='markdown' && <button className="text-button" onClick={downloadText}><Download size={15}/>下载</button>}{url && <a className="text-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>打开文件</a>}</div>
     {artifact.kind==='markdown' && <div className="artifact-document"><Markdown book={book}>{artifact.content}</Markdown></div>}
     {(artifact.kind==='mindmap'||artifact.kind==='knowledge-graph') && <GraphView artifact={artifact} onPage={onPage} book={book}/>}
-    {artifact.kind==='slides' && <SlidesView artifact={artifact} book={book}/>}
+    {artifact.kind==='slides' && (artifact.chapters?.length ? <PdfSlidesView key={artifact.id} artifact={artifact}/> : <SlidesView key={artifact.id} artifact={artifact} book={book}/>)}
     {artifact.kind==='video' && (url ? <div className="video-view"><video key={url} src={url} controls preload="metadata"/><p>{artifact.title}</p></div> : <div className="artifact-empty">视频地址无效，无法播放。</div>)}
     {artifact.kind==='file' && <div className="file-view"><FileText size={42} strokeWidth={1.25}/><h2>{artifact.title}</h2><p>{artifact.filename || '课程资料'}</p>{url ? <a className="primary-button" href={url} target="_blank" rel="noreferrer"><Download size={16}/>打开或下载</a> : <p>文件地址无效，无法打开。</p>}</div>}
   </section>;
