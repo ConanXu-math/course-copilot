@@ -91,6 +91,7 @@ description: 使用 LaTeX Beamer 根据教材生成按章组织、可按小节�
 
 ## 10. LaTeX 源文件与编译
 
+- 编写和修改课件时，阅读 [Beamer 模板](references/beamer-templates.md)，使用对应的模板资源并遵循模板选择规则。
 - 使用 Beamer 文档类，默认页面比例设为 `aspectratio=169`。中文课件使用 `ctex` 配置中文排版，默认使用 XeLaTeX 编译，并确认所用字体在当前环境中可用。
 - 数学排版优先采用美国数学学会（AMS）的 `amsmath`、`amsfonts`、`amssymb` 宏包，数学字体优先使用 Computer Modern 配合 AMS Fonts。`amsmath` 提供数学排版环境，具体字形由数学字体提供。Beamer 中使用 `\usefonttheme[onlymath]{serif}` 配置衬线数学字体；数学字体设置统一放在 `preamble.tex` 中。
 - 优先数学字体不可用时，回退到编译环境的默认数学字体。回退后逐页核对上下标、希腊字母、黑板粗体、粗体向量及特殊符号，确认其含义与教材一致；缺字和替代字体情况记录在源码注释中。

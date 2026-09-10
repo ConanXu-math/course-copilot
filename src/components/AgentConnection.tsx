@@ -175,6 +175,15 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
       {!installed && <p>可填写完整路径。填写后点击上方“连接本机 {agentName}”。</p>}
     </details>
 
+    <details className="agent-details">
+      <summary>课件编译环境<span>{status?.latex?.ready ? '依赖已找到' : '需要检查'}</span><ChevronDown size={15}/></summary>
+      <p>{status?.latex?.message || '刷新状态以检查课件编译环境。'}</p>
+      {status?.latex?.engine && <p>XeLaTeX：<code>{status.latex.engine}</code></p>}
+      {status?.latex?.version && <p>{status.latex.version}</p>}
+      {status?.latex && <p>{status.latex.preferredMathFonts ? '数学字体：Computer Modern 与 AMS Fonts。' : '数学字体将在生成时按编译环境检查并选择。'}</p>}
+      <button className="agent-refresh" disabled={locked} onClick={() => void perform('检查课件环境', () => getAgentStatus(), '课件编译环境已检查。')}><RefreshCw size={14}/>重新检查</button>
+    </details>
+
     <details className="agent-details skill-paths">
       <summary>接入 Skill<span>{configured} / {status?.skills.length ?? groups.reduce((total, group) => total + group.ids.length, 0)} 已配置</span><ChevronDown size={15}/></summary>
       {groups.map(group => <fieldset key={group.name} disabled={locked}>

@@ -15,6 +15,10 @@
 
 在 `outputs/slides-<本次结果ID>/` 中保存本次课件。公共设置、章节入口、小节正文和引用图片共同组成可重新编译的 LaTeX 项目。修改现有课件时，读取已有资料的源文件，围绕用户指定内容更新本次输出。
 
+应用提供本轮选择的模板及资源目录，按 [Beamer 模板](beamer-templates.md) 加载。修改已有资料时，从 `sourceUrl` 找到源码 ZIP；将课程文件 URL 对应到本轮课程 outputs 中的文件，在本轮输出目录中展开并编辑。
+
+应用会检查本机 XeLaTeX、模板宏包、Fandol 中文字体和首选数学字体，并在任务中提供引擎路径与缺失项目。依据检查结果准备编译，实际运行编译器后核对日志和 PDF。
+
 使用本机已安装的 XeLaTeX，查找顺序为 PATH、macOS 的 `/Library/TeX/texbin/xelatex`。使用 Beamer、ctex 和适合教材公式的数学宏包。中文字体可以采用 TeX Live 自带的 Fandol 字体。依赖缺失时说明缺少的程序或宏包，并保存已完成的源文件供继续处理。
 
 从 LaTeX 项目根目录直接运行 XeLaTeX。下列命令中的入口文件名按当前章节调整；引擎使用实际找到的可执行文件路径：
@@ -37,6 +41,7 @@ xelatex -no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-erro
   "id": "本轮任务给出的结果ID",
   "title": "教材名称：所选章节课件",
   "kind": "slides",
+  "templateId": "navy",
   "chapters": [
     {
       "title": "第 3 章 梯度方法",

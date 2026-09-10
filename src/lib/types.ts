@@ -44,6 +44,7 @@ export interface SkillInfo {
   title: string;
   description: string;
   available: boolean;
+  templates?: { id: string; title: string; description: string }[];
 }
 
 export interface SkillRequest {
@@ -55,6 +56,7 @@ export interface SkillRequest {
   selectedText: string;
   pageText: string;
   prompt: string;
+  templateId?: string;
   artifact?: Artifact;
   history: { role: 'user' | 'assistant'; content: string }[];
 }
@@ -63,7 +65,7 @@ export type Artifact =
   | { id: string; title: string; kind: 'markdown'; content: string }
   | { id: string; title: string; kind: 'mindmap' | 'knowledge-graph'; nodes: { id: string; label: string; page?: number }[]; edges: { source: string; target: string; label?: string }[] }
   | { id: string; title: string; kind: 'slides'; slides?: { title: string; content: string }[]; url?: string;
-      chapters?: { title: string; url: string; filename?: string }[]; sourceUrl?: string }
+      chapters?: { title: string; url: string; filename?: string }[]; sourceUrl?: string; templateId?: string }
   | { id: string; title: string; kind: 'video' | 'file'; url: string; filename?: string };
 
 export type SkillEvent =

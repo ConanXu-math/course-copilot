@@ -7,6 +7,7 @@ import { codingAgent, generateAgentImage, getAgentStatus, getSkillAvailability, 
 export { disposeAgent } from './agent.mjs';
 import { handleCourseApi } from './course-api.mjs';
 import { getCoursePaths, saveArtifact, outputUrl } from './course-store.mjs';
+import { slideTemplates } from './slide-templates.mjs';
 
 const pdfAssetsRoot = fileURLToPath(new URL('../node_modules/pdfjs-dist/', import.meta.url));
 
@@ -63,6 +64,9 @@ function checkRequest(request) {
     || !Array.isArray(request.history)
     || !request.history.every((item) => item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string')) {
     throw new HttpError(400, '缺少教材、页码、操作范围或问题内容，请刷新页面后重试。');
+  }
+  if (request.templateId !== undefined && !slideTemplates.some(template => template.id === request.templateId)) {
+    throw new HttpError(400, '请选择白底深蓝、米白宋体或蓝色标题栏模板。');
   }
 }
 

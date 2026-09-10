@@ -157,6 +157,10 @@ export const tutoringSkills = [
 
 仓库中的 [`textbook-to-ppt`](../skills/textbook-to-ppt/SKILL.md) 使用 LaTeX Beamer 生成章节 PDF，并在 [`materials.mjs`](../server/skills/materials.mjs) 配置默认路径。具体输入范围、编译方式和返回示例见 [课件接入说明](../skills/textbook-to-ppt/references/course-copilot.md)。Agent 需要在部署机器上调用已安装的 XeLaTeX。各章文件地址与源文件 ZIP 地址都经过课程输出目录的路径转换和文件存在性检查。源文件 ZIP 收录可重新编译的项目文件。
 
+课件请求可携带 `templateId`，取值为 `navy`、`ivory` 或 `banner`；省略时沿用当前课件的模板，新建使用 `navy`。模板目录由 `server/slide-templates.mjs` 提供，前端从 Skill 信息的 `templates` 字段读取选项。课件结果可用 `templateId` 记录实际采用的模板，供后续修改沿用。用户正文中的明确版式要求优先；自行设计的版式省略模板字段并保留源码。
+
+`server/latex-environment.mjs` 查询 XeLaTeX 及其安装中的宏包和字体。`/api/agent/status` 返回 `latex` 检查信息；生成任务收到同一组信息并运行实际编译。增加模板依赖时同步更新环境检查中的资源列表。
+
 `url` 指向已经存在的课程输出文件，可以使用 `outputs` 下的相对路径或完整本地路径；服务会转换成当前课程的浏览器地址。远程下载链接不能直接作为这里的文件结果。不要返回并未生成的 PDF、PPTX 或视频地址。
 
 例如「习题生成」可以使用 `markdown`，不需要新建一种结果类型。只有现有类型确实无法表达时，才一起修改 [`Artifact` 类型](../src/lib/types.ts)、[`normalizeArtifact` 与文件保存](../server/course-store.mjs)、[`ArtifactViewer`](../src/components/ArtifactViewer.tsx) 以及 [`server/agent.mjs`](../server/agent.mjs) 中告诉 Agent 的结果格式。

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { slideTemplates } from './slide-templates.mjs';
 
 const configuredHome = process.env.COURSE_COPILOT_HOME || resolve(homedir(), '.course-copilot');
 let directory = resolve(configuredHome.replace(/^~(?=\/|$)/, homedir()));
@@ -285,6 +286,7 @@ function normalizeArtifact(record, artifact) {
   recordName(artifact.id);
   if (artifact.kind === 'markdown' && typeof artifact.content !== 'string') fail(400, '文字资料缺少正文。');
   if (artifact.kind === 'slides') {
+    if (artifact.templateId !== undefined && !slideTemplates.some(template => template.id === artifact.templateId)) fail(400, '课件模板名称不正确。');
     if (artifact.slides !== undefined && (!Array.isArray(artifact.slides) || !artifact.slides.every((slide) => object(slide)
         && typeof slide.title === 'string' && typeof slide.content === 'string'))) fail(400, '课件页面需要包含标题和正文。');
     if (artifact.chapters !== undefined && (!Array.isArray(artifact.chapters) || !artifact.chapters.length

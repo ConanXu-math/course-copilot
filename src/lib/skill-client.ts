@@ -18,6 +18,7 @@ export interface AgentStatus {
   config: { provider: AgentProvider; executable: string; model: string; skillPaths: Record<string, string>; imageGeneration: ImageGenerationSettings };
   imageProviders: { id: string; name: string }[];
   imageError: string;
+  latex?: { engine: string; version: string; missing: string[]; preferredMathFonts: boolean; ready: boolean; message: string };
   models: { id: string; name: string; isDefault: boolean }[];
   modelNote: string;
   login?: { loginId: string; authUrl?: string; command?: string; manual?: boolean };
@@ -66,7 +67,7 @@ export const saveAgentConfig = (value: { provider?: AgentProvider; model?: strin
 export function skillsFromStatus(status: AgentStatus): SkillInfo[] {
   return [
     { id: 'chat', title: '自由提问', description: '围绕教材提问，接着讨论上一轮内容。', available: status.connected },
-    ...status.skills.map(({ id, title, description, configured }) => ({ id, title, description, available: status.connected && configured })),
+    ...status.skills.map(({ id, title, description, configured, templates }) => ({ id, title, description, templates, available: status.connected && configured })),
   ];
 }
 
