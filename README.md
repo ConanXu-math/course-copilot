@@ -94,7 +94,7 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 
 ## 教材 PDF 课件
 
-[`skills/textbook-to-ppt`](skills/textbook-to-ppt/SKILL.md) 随项目接入「生成课件」。连接 Agent 后，选择当前页、选中内容、当前章节或整本教材，并发送要求。整书任务按教材章节分别生成 PDF；章内按教材小节编排，默认采用 16:9 页面。定义、定理、证明、算法和例题按教材内容展开，页面注明教材出处。
+[`skills/textbook-to-ppt`](skills/textbook-to-ppt/SKILL.md) 随项目接入「生成课件」。连接 Agent 后，选择当前页、选中内容、当前章节或整本教材，并发送要求。整书任务按教材章节分别生成 PDF；章内按教材小节编排，默认采用 16:9 页面。定义、定理、证明、算法和例题按教材内容展开，页脚使用幻灯片页码，教材位置对应与校对说明记录在 LaTeX 源码注释中。
 
 部署电脑需要可用的 XeLaTeX，以及 Beamer、ctex、数学宏包和中文字体。可使用包含这些组件的 TeX Live 或 MacTeX 安装；程序从 PATH 查找 XeLaTeX，macOS 也查找 `/Library/TeX/texbin/xelatex`。Agent 直接运行编译命令并检查生成页面，依赖缺失时会报告具体原因。
 
