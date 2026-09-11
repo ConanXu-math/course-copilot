@@ -267,7 +267,7 @@ export default function App() {
           {outlineMode==='chapters' && !displayedChapters.length && <p className="outline-empty">{query?'没有找到相关章节':'这本 PDF 暂无内置目录，可使用页码翻阅。'}</p>}
           {outlineMode==='bookmarks' && !bookmarks.length && <p className="outline-empty">点击教材右上方的书签图标，收藏想要回看的页面。</p>}
         </div>
-        <div className="outline-bottom"><span className="book-format"><FileText size={15}/><span>PDF 教材<small>{book?.totalPages ? `${book.totalPages} 页 · 原文阅读`:'正在载入'}</small></span></span><button className="icon-button" onClick={()=>setShowHelp(true)} aria-label="使用帮助"><CircleHelp size={16}/></button></div>
+        <div className="outline-bottom"><span className="book-format"><FileText size={15}/></span><button className="icon-button" onClick={()=>setShowHelp(true)} aria-label="使用帮助"><CircleHelp size={16}/></button></div>
       </aside>
 
       <main id="course-reading" className="reading-panel">
