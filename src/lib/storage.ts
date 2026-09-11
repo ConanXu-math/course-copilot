@@ -109,7 +109,7 @@ function isArtifact(value: unknown): value is Artifact {
 function isMessage(value: unknown): value is Message {
   return isObject(value) && textField(value, 'id') && textField(value, 'content') && (value.role === 'user' || value.role === 'assistant')
     && (value.status === undefined || ['running', 'done', 'error', 'stopped'].includes(String(value.status)))
-    && (value.skillId === undefined || ['chat', 'explain', 'mindmap', 'knowledge-graph', 'slides', 'video'].includes(String(value.skillId)))
+    && (value.skillId === undefined || ['chat', 'textbook-parse', 'explain', 'quiz', 'mindmap', 'knowledge-graph', 'slides', 'video'].includes(String(value.skillId)))
     && (value.progress === undefined || textField(value, 'progress'))
     && (value.artifacts === undefined || Array.isArray(value.artifacts) && value.artifacts.every(isArtifact));
 }

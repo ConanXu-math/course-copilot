@@ -1,5 +1,6 @@
 .react-flow__node-default.course-graph-node {
   --graph-node-ink: #000;
+  background: var(--accent-soft) !important;
   color: var(--graph-node-ink) !important;
 }
 .mindmap-node .graph-node-original { --graph-node-ink: #000; }

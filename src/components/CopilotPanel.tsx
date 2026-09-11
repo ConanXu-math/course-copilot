@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, BookOpen, ChevronDown, CornerDownLeft, FileSliders, MessageCircle, Network, Quote, Sparkles, Square, Video, Waypoints, X, ArrowUpRight } from 'lucide-react';
-import type { Artifact, Book, Chapter, KnowledgeGraphDetail, Scope, SkillId, SkillInfo } from '../lib/types';
+import { ArrowUp, BookOpen, Check, ChevronDown, ClipboardList, CornerDownLeft, FileSliders, FileText, MessageCircle, Network, Plus, Quote, Sparkles, Square, Video, Waypoints, X, LoaderCircle, ArrowUpRight, AlertCircle, History } from 'lucide-react';
+import type { Artifact, Book, Chapter, KnowledgeGraphDetail, Message, Scope, SkillId, SkillInfo } from '../lib/types';
+import Markdown from './Markdown';
+import './slide-template-picker.css';
 
 const tools = [
+  { id: 'textbook-parse', title: '教材解析', subtitle: '提取正文公式与图片', icon: FileText, prompt: '请解析所选范围的教材，提取正文、LaTeX 公式、图片和目录，保留对应的 PDF 页码，并保存为学习资料。' },
   { id: 'explain', title: '讲解内容', subtitle: '把难点讲明白', icon: BookOpen, prompt: '请讲解当前内容，先给出直观理解，再展开关键步骤。' },
+  { id: 'quiz', title: '知识点出题', subtitle: '围绕知识点练一练', icon: ClipboardList, prompt: '请围绕当前知识点生成由浅入深的练习题，先列题目，再集中给出参考答案、解析和易错点，并保存为学习资料。' },
   { id: 'mindmap', title: '思维导图', subtitle: '梳理章节脉络', icon: Waypoints, prompt: '请将当前内容整理为层次清晰的思维导图。' },
   { id: 'knowledge-graph', title: '知识图谱', subtitle: '发现知识间的联系', icon: Network, prompt: '请梳理当前内容中的知识点，以及它们之间的关系。' },
   { id: 'slides', title: '生成课件', subtitle: '把知识变成课件', icon: FileSliders, prompt: '请根据当前内容生成适合课堂讲解的课件。' },
@@ -14,17 +18,20 @@ const tools = [
 interface Props {
   book: Book; page: number; chapter?: Chapter; selectedText: string; onClearSelection: () => void;
   contextArtifact?: Artifact; onClearArtifact: () => void;
-  skills: SkillInfo[]; busy: boolean; onSend: (id: SkillId, prompt: string, scope: Scope, knowledgeGraphDetail?: KnowledgeGraphDetail) => void;
-  onStop: () => void; onSettings: () => void;
+  skills: SkillInfo[]; messages: Message[]; busy: boolean; onSend: (id: SkillId, prompt: string, scope: Scope, knowledgeGraphDetail?: KnowledgeGraphDetail, templateId?: string) => void;
+  onStop: () => void; onReset: () => void; onHistory: () => void; onArtifact: (artifact: Artifact) => void; onSettings: () => void;
 }
 
 export default function CopilotPanel(props: Props) {
-  const { book, selectedText, contextArtifact, skills, busy } = props;
+  const { book, page, chapter, selectedText, contextArtifact, skills, messages, busy } = props;
   const [activeSkill, setActiveSkill] = useState<SkillId>('chat');
   const [prompt, setPrompt] = useState('');
   const [scope, setScope] = useState<Scope>('page');
+  const [templateId, setTemplateId] = useState('');
   const [knowledgeGraphDetail, setKnowledgeGraphDetail] = useState<KnowledgeGraphDetail>('overview');
+  const [toolsOpen, setToolsOpen] = useState(true);
   const input = useRef<HTMLTextAreaElement>(null);
+  const conversation = useRef<HTMLDivElement>(null);
   const selectedInfo = skills.find(skill => skill.id === activeSkill);
   const activeTitle = tools.find(tool => tool.id === activeSkill)?.title;
   const connectedCount = skills.filter(skill => skill.available).length;
@@ -33,35 +40,85 @@ export default function CopilotPanel(props: Props) {
     : !structureScope && scope === 'section' ? 'page' : scope;
 
   useEffect(() => { if (selectedText) setScope('selection'); else setScope(current => current === 'selection' ? 'page' : current); }, [selectedText]);
-  useEffect(() => { setPrompt(''); setScope('page'); setActiveSkill('chat'); setKnowledgeGraphDetail('overview'); }, [book.id]);
+  useEffect(() => {
+    const container = conversation.current;
+    if (container?.clientHeight) container.scrollTo({ top: messages.length ? container.scrollHeight : 0, behavior: 'smooth' });
+  }, [messages]);
+  useEffect(() => {
+    const container = conversation.current;
+    if (!container) return;
+    let wasVisible = container.clientHeight > 0;
+    const observer = new ResizeObserver(() => {
+      const isVisible = container.clientHeight > 0;
+      if (isVisible && !wasVisible) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      wasVisible = isVisible;
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => { setPrompt(''); setScope('page'); setActiveSkill('chat'); setTemplateId(''); setKnowledgeGraphDetail('overview'); setToolsOpen(true); }, [book.id]);
 
   function submit() {
     if (!prompt.trim() || busy || (currentScope === 'selection' && !selectedText)) return;
-    props.onSend(activeSkill, prompt.trim(), currentScope, activeSkill === 'knowledge-graph' ? knowledgeGraphDetail : undefined);
+    props.onSend(activeSkill, prompt.trim(), currentScope, activeSkill === 'knowledge-graph' ? knowledgeGraphDetail : undefined, activeSkill === 'slides' ? templateId || undefined : undefined);
     setPrompt('');
+    setToolsOpen(false);
   }
 
-  return <section className="course-composer" aria-label="课程工具与输入">
-    <section className="tool-section" aria-label="课程工具">
-      <div className="section-label tool-heading"><span>课程工具 <small>SKILLS</small></span></div>
-      <div className="skill-grid">{tools.map(tool => <button key={tool.id} className={`skill-tile ${activeSkill === tool.id ? 'selected' : ''}`} aria-pressed={activeSkill === tool.id} onClick={() => { setActiveSkill(tool.id); setPrompt(tool.prompt); input.current?.focus(); }} title={skills.find(item => item.id === tool.id)?.available ? tool.subtitle : `${tool.title}尚待接入，可以先填写要求`}>
-        <span className={`tool-icon tool-${tool.id}`}><tool.icon size={18}/></span><span className="tool-copy"><strong>{tool.title}</strong></span>
-        {!skills.find(item => item.id === tool.id)?.available && <span className="pending-dot" aria-label="待接入"/>}
-      </button>)}</div>
-    </section>
+  return <aside className="copilot-panel" aria-label="课程 Copilot" id="course-copilot">
+    <header className="copilot-header">
+      <div className="copilot-title"><span className="copilot-symbol"><Sparkles size={19}/></span><span>Copilot <small>课程学习助手</small></span></div>
+      <div className="copilot-header-actions"><button className="icon-button" title="历史对话" aria-label="历史对话" onClick={props.onHistory} disabled={busy}><History size={17}/></button><button className="icon-button" title="新建对话" aria-label="新建对话" onClick={props.onReset} disabled={busy || !messages.length}><Plus size={19}/></button></div>
+    </header>
+
+    <div className="copilot-scroll" ref={conversation}>
+      <div className="context-card"><BookOpen size={15}/><div><span>正在一起阅读</span><strong>{chapter?.title || book.title}</strong></div><span className="context-page">P.{page}</span></div>
+
+      <section className="tool-section" aria-label="课程工具">
+        <button className="section-label tool-heading" onClick={() => setToolsOpen(!toolsOpen)} aria-expanded={toolsOpen}><span>课程工具 <small>SKILLS</small></span><ChevronDown size={15} className={toolsOpen ? '' : 'rotated'}/></button>
+        {toolsOpen && <div className="skill-grid">{tools.map(tool => <button key={tool.id} className={`skill-tile ${activeSkill === tool.id ? 'selected' : ''}`} aria-pressed={activeSkill === tool.id} onClick={() => { setActiveSkill(tool.id); setPrompt(tool.prompt); input.current?.focus(); }} title={skills.find(item => item.id === tool.id)?.available ? tool.subtitle : `${tool.title}尚待接入，可以先填写要求`}>
+          <span className={`tool-icon tool-${tool.id}`}><tool.icon size={18}/></span><span className="tool-copy"><strong>{tool.title}</strong><small>{tool.subtitle}</small></span>
+          {!skills.find(item => item.id === tool.id)?.available && <span className="pending-dot" aria-label="待接入"/>}
+        </button>)}</div>}
+      </section>
+
+      {messages.length === 0 ? <div className="copilot-welcome">
+        <span className="welcome-spark"><Sparkles size={24} strokeWidth={1.5}/></span>
+        <h2>带着问题，读懂这一页</h2>
+        <p>选择一个学习工具，或选中教材中的内容，<br/>把你的疑问留在这里。</p>
+        <div className="starter-prompts">
+          <button onClick={() => { setActiveSkill('explain'); setPrompt('这部分内容的核心思想是什么？请用一个直观的例子解释。'); input.current?.focus(); }}>这部分的核心思想是什么？<ArrowUpRight size={15}/></button>
+          <button onClick={() => { setActiveSkill('chat'); setPrompt('学习当前内容前，需要先掌握哪些知识？'); input.current?.focus(); }}>我需要先掌握哪些知识？<ArrowUpRight size={15}/></button>
+        </div>
+      </div> : <div className="messages" aria-live="polite">{messages.map(message => <article key={message.id} className={`message message-${message.role}`}>
+        {message.role === 'assistant' && <div className="message-name"><Sparkles size={14}/> Copilot</div>}
+        {message.content && <Markdown book={book}>{message.content}</Markdown>}
+        {message.status === 'running' && <div className="message-progress"><LoaderCircle size={14} className="spin"/>{message.progress || '正在处理…'}</div>}
+        {(message.status === 'error' || message.status === 'stopped') && <div className="message-error"><AlertCircle size={15}/><span>{message.progress || '暂时无法完成，请稍后重试。'}</span></div>}
+        {message.artifacts?.map(artifact => <button className="artifact-message" key={artifact.id} onClick={() => props.onArtifact(artifact)}><FileSliders size={18}/><span>{artifact.title}<small>点击在左侧查看</small></span><ArrowUpRight size={16}/></button>)}
+        {message.status === 'done' && !message.content && !message.artifacts?.length && <div className="message-progress"><Check size={14}/>已完成</div>}
+      </article>)}</div>}
+    </div>
 
     <div className="composer-area">
       {contextArtifact && <div className="selection-context artifact-context"><FileSliders size={14}/><span title={contextArtifact.title}>正在讨论：{contextArtifact.title}</span><button className="icon-button" onClick={props.onClearArtifact} aria-label="清除资料上下文"><X size={14}/></button></div>}
       {selectedText && <div className="selection-context"><Quote size={14}/><span>{selectedText}</span><button className="icon-button" onClick={props.onClearSelection} aria-label="清除选中内容"><X size={14}/></button></div>}
       <div className="composer">
+        {activeSkill === 'slides' && <label className="slide-template-picker">课件模板
+          <select aria-label="课件模板" value={templateId} disabled={busy} onChange={event => setTemplateId(event.target.value)}>
+            <option value="">沿用原模板 · 新建用白底深蓝</option>
+            {selectedInfo?.templates?.map(template => <option key={template.id} value={template.id}>{template.title}</option>)}
+          </select>
+          {templateId && <small>{selectedInfo?.templates?.find(template => template.id === templateId)?.description}</small>}
+        </label>}
         <div className="composer-options"><span className="active-skill"><Sparkles size={12}/>{activeTitle}</span>{activeSkill === 'knowledge-graph' && <label className="scope-picker knowledge-detail-picker" title="概览突出核心关系；详细展开范围内的概念与关系，并记录覆盖情况。"><select aria-label="知识图谱详细程度" value={knowledgeGraphDetail} onChange={event => setKnowledgeGraphDetail(event.target.value as KnowledgeGraphDetail)}><option value="overview">概览</option><option value="detailed">详细</option></select><ChevronDown size={12}/></label>}<label className="scope-picker"><select aria-label="操作范围" value={currentScope} onChange={event => setScope(event.target.value as Scope)}>
           {structureScope ? <><option value="section">当前节</option><option value="chapter">当前章</option></> : <><option value="page">当前页</option><option value="chapter">当前章节</option></>}
           <option value="book">整本教材</option><option value="selection" disabled={!selectedText}>选中内容</option>
         </select><ChevronDown size={12}/></label></div>
-        <textarea ref={input} value={prompt} onChange={event => setPrompt(event.target.value)} placeholder={activeSkill === 'chat' ? '关于这本教材，你想了解什么？' : '补充你的要求…'} aria-label="向 Copilot 输入要求" rows={2} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}/>
+        <textarea ref={input} value={prompt} onChange={event => setPrompt(event.target.value)} placeholder={activeSkill === 'chat' ? '关于这本教材，你想了解什么？' : '补充你的要求…'} aria-label="向 Copilot 输入要求" rows={3} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}/>
         <div className="composer-bottom"><span><CornerDownLeft size={12}/> 发送 <i>·</i> Shift + Enter 换行</span>{busy ? <button className="send-button" onClick={props.onStop} aria-label="停止任务"><Square size={15} fill="currentColor"/></button> : <button className="send-button" onClick={submit} disabled={!prompt.trim()} aria-label="发送要求" title={selectedInfo?.available ? '发送要求' : '此功能尚待接入'}><ArrowUp size={19}/></button>}</div>
       </div>
       <button className="connection-note" onClick={props.onSettings}><span className={`status-dot ${connectedCount ? 'online' : ''}`}/>{connectedCount ? `${connectedCount} 个工具已连接` : '学习工具待接入'}<span>查看连接<ArrowUpRight size={11}/></span></button>
     </div>
-  </section>;
+  </aside>;
 }

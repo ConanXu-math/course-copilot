@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ExternalLink, LoaderCircle, Plug, RefreshCw, Unplug } from 'lucide-react';
-import { cancelAgentLogin, connectAgent, disconnectAgent, getAgentStatus, saveAgentConfig, startAgentLogin, type AgentProvider, type AgentStatus } from '../lib/skill-client';
+import { cancelAgentLogin, connectAgent, disconnectAgent, getAgentStatus, saveAgentConfig, startAgentLogin, type AgentProvider, type AgentStatus, type ImageGenerationSettings } from '../lib/skill-client';
 
 interface Props {
   status: AgentStatus | null;
@@ -10,7 +10,7 @@ interface Props {
 }
 
 const groups = [
-  { name: '讲解与问答', owner: '同学 A', ids: ['explain'] },
+  { name: '讲解与问答', owner: '同学 A', ids: ['textbook-parse', 'explain', 'quiz'] },
   { name: '知识结构', owner: '同学 B', ids: ['mindmap', 'knowledge-graph'] },
   { name: '课件与视频', owner: '同学 C', ids: ['slides', 'video'] },
 ];
@@ -18,6 +18,7 @@ const groups = [
 export default function AgentConnection({ status, active, busy, onChange }: Props) {
   const [executable, setExecutable] = useState('');
   const [paths, setPaths] = useState<Record<string, string>>({});
+  const [imageSettings, setImageSettings] = useState<ImageGenerationSettings>({ enabled: false, provider: '', model: 'gpt-image-2' });
   const [working, setWorking] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -35,6 +36,10 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
   useEffect(() => {
     setExecutable(status?.config.executable || '');
   }, [provider, status?.config.executable]);
+
+  useEffect(() => {
+    if (status?.config.imageGeneration) setImageSettings(status.config.imageGeneration);
+  }, [status?.config.imageGeneration?.enabled, status?.config.imageGeneration?.provider, status?.config.imageGeneration?.model]);
 
   useEffect(() => {
     if (!active) return;
@@ -137,6 +142,30 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
     {busy && <p className="agent-feedback">当前任务结束后，可以更改连接设置。</p>}
 
     <details className="agent-details">
+      <summary>文生图<span>{status?.config.imageGeneration?.enabled ? '已配置' : '未启用'}</span><ChevronDown size={15}/></summary>
+      <p>需要配图时优先调用图片模型，生成结果保存在当前课程。聊天模型保持原设置。</p>
+      <label className="agent-field">绘图方式
+        <select aria-label="绘图方式" value={imageSettings.enabled ? 'image' : 'code'} disabled={locked} onChange={event => setImageSettings(previous => ({ ...previous, enabled: event.target.value === 'image' }))}>
+          <option value="code">程序绘图</option><option value="image">优先文生图</option>
+        </select>
+      </label>
+      <label className="agent-field">图片服务
+        <select aria-label="图片服务" value={imageSettings.provider} disabled={locked} onChange={event => setImageSettings(previous => ({ ...previous, provider: event.target.value }))}>
+          <option value="">请选择服务</option>
+          {status?.imageProviders?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <small>复用 OpenCode 中已有服务的 API 凭据；该账号须已开通生图权限。</small>
+      </label>
+      <label className="agent-field">图片模型
+        <input aria-label="图片模型" value={imageSettings.model} disabled={locked} onChange={event => setImageSettings(previous => ({ ...previous, model: event.target.value }))} placeholder="gpt-image-2" spellCheck={false}/>
+      </label>
+      {status?.imageError && <p className="agent-feedback error" role="alert">{status.imageError}</p>}
+      <button className="secondary-button" disabled={locked || !status} onClick={() => void perform('保存图片设置', () => saveAgentConfig({ imageGeneration: imageSettings }), '图片设置已保存；实际可用性以服务返回结果为准。')}>
+        <Check size={15}/>保存图片设置
+      </button>
+    </details>
+
+    <details className="agent-details">
       <summary>程序位置<span>通常无需填写</span><ChevronDown size={15}/></summary>
       <label className="agent-field">{agentName} 程序路径
         <input value={executable} disabled={locked || installed} onChange={event => setExecutable(event.target.value)} placeholder={`留空，自动查找本机 ${agentName}`} autoComplete="off" spellCheck={false}/>
@@ -146,8 +175,17 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
       {!installed && <p>可填写完整路径。填写后点击上方“连接本机 {agentName}”。</p>}
     </details>
 
+    <details className="agent-details">
+      <summary>课件编译环境<span>{status?.latex?.ready ? '依赖已找到' : '需要检查'}</span><ChevronDown size={15}/></summary>
+      <p>{status?.latex?.message || '刷新状态以检查课件编译环境。'}</p>
+      {status?.latex?.engine && <p>XeLaTeX：<code>{status.latex.engine}</code></p>}
+      {status?.latex?.version && <p>{status.latex.version}</p>}
+      {status?.latex && <p>{status.latex.preferredMathFonts ? '数学字体：Computer Modern 与 AMS Fonts。' : '数学字体将在生成时按编译环境检查并选择。'}</p>}
+      <button className="agent-refresh" disabled={locked} onClick={() => void perform('检查课件环境', () => getAgentStatus(), '课件编译环境已检查。')}><RefreshCw size={14}/>重新检查</button>
+    </details>
+
     <details className="agent-details skill-paths">
-      <summary>接入 Skill<span>{configured} / {status?.skills.length || 5} 已配置</span><ChevronDown size={15}/></summary>
+      <summary>接入 Skill<span>{configured} / {status?.skills.length ?? groups.reduce((total, group) => total + group.ids.length, 0)} 已配置</span><ChevronDown size={15}/></summary>
       {groups.map(group => <fieldset key={group.name} disabled={locked}>
         <legend>{group.name}<span>{group.owner}</span></legend>
         {group.ids.map(id => {

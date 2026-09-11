@@ -1,0 +1,3 @@
+.slide-template-picker{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;color:var(--text-secondary);font-size:12px}
+.slide-template-picker select{width:100%;min-width:0;padding:7px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--text);font:inherit}
+.slide-template-picker small{font-size:11px;line-height:1.5;color:var(--muted)}

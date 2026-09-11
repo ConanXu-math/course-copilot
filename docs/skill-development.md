@@ -8,11 +8,29 @@
 
 | 方向 | 功能 ID | 功能列表所在文件 | 常用结果类型 |
 | --- | --- | --- | --- |
-| 讲解与问答 | `explain` | [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) | 普通回答或 `markdown` |
+| 教材、讲解与练习 | `textbook-parse`、`explain`、`quiz` | [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) | 普通回答或 `markdown` |
 | 知识结构 | `mindmap`、`knowledge-graph` | [`server/skills/structure.mjs`](../server/skills/structure.mjs) | `mindmap`、`knowledge-graph` |
 | 课件与视频 | `slides`、`video` | [`server/skills/materials.mjs`](../server/skills/materials.mjs) | `slides`、`video` 或 `file` |
 
 `chat` 是自由问答，不需要另外填写一个 Skill 路径。
+
+OpenCode 的课程连接使用独立配置。开发者必须在「接入 Skill」中提供所需的 `SKILL.md` 路径，不能依赖自己电脑上的全局 Skill、Superpowers 或 MCP 自动加入课程。Agent 通过文件读取使用这些 Skill；如需外部软件，仍需在部署机器上安装并说明依赖。
+
+公共教学要求写在 [`server/prompts/course-tutor.md`](../server/prompts/course-tutor.md)，三种 Agent 共用，修改后下一次请求生效，无需编译前端。它面向不同学科、学习阶段和部署者，负责课程目标、先修联系、教材依据、分层讲解、练习反馈和学习连续性等通用原则，不包含某位用户的背景或某一本教材的专用规则。
+
+开发时按下面的分工组织指令，不必在每个 Skill 中复制整份公共提示词：
+
+| 位置 | 应当包含的内容 |
+| --- | --- |
+| 公共教学提示词 | 各课程通用的教学原则、依据要求和交互方式 |
+| 本次课程上下文 | 当前教材、章节、阅读位置、用户要求与实际可用的历史对话 |
+| 专项 `SKILL.md` 及其资源 | 具体任务的方法、学科专用说明、所需工具及资料制作步骤 |
+
+公共要求中的练习反馈和学习衔接由 Agent 根据实际对话执行，不表示工作台已经实现自动测评、掌握度模型或跨课程的长期记忆。Skill 需要额外能力时，应明确其真实依赖和输入。
+
+可视化 Skill 应说明适合解释哪类课程问题、怎样生成图、依据哪些数据或模型，以及如何显示结果。静态图片可以保存到课程 `outputs` 后通过 Markdown 引用；知识结构使用已有的节点与连线资料格式。当前对话不会把 Mermaid 代码块或 HTML／JavaScript 代码直接运行成图表；交互演示需要真实可用的展示方式。配图应保留标签、必要的假设及阅读说明，定量图表应来自实际数据或计算。
+
+部署者开启文生图后，每次课程任务会提供本机图片接口及调用说明。Skill 应优先使用该入口，仅提交绘图要求，引用返回的 `markdown`；不读取或复制 API Key，不在 Skill 中写死服务地址或图片模型。服务拒绝或生成失败时如实说明，不能把程序绘图称为文生图。
 
 这些 `.mjs` 文件只列出功能的 ID、名称、说明和默认 Skill 路径。实际方法写在 `SKILL.md` 及其资源里；不需要在每个模块中创建模型客户端或新的 HTTP 服务。
 
@@ -54,7 +72,9 @@ description: 根据当前教材页、章节或选中文字解释概念与公式�
 使用脚本前先确认所需依赖可用；步骤失败时说明原因，不声称生成成功。
 ````
 
-上面的讲解 Skill 是供开发者继续完善的示例。仓库已提供 [`skills/mindmap/`](../skills/mindmap/SKILL.md) 和 [`skills/knowledge-graph/`](../skills/knowledge-graph/SKILL.md)：各自包含生成指令、结果校验脚本和测试。知识图谱的 PDF 读取脚本复用同仓库的思维导图读取实现及项目已有 PDF.js，所以交付时需要保留这两个 Skill 目录。可以参照它们的输入与输出约定开发其他功能。若使用 `references/` 或 `scripts/`，在 `SKILL.md` 中写明何时读取、如何执行以及需要的依赖。程序应接收本次任务给出的输入和输出路径，不固定某位开发者的用户名、教材位置或账号。
+仓库已提供教材解析、讲解、出题和课件 Skill，以及思维导图和知识图谱 Skill。
+
+仓库已提供 [`skills/mindmap/`](../skills/mindmap/SKILL.md) 和 [`skills/knowledge-graph/`](../skills/knowledge-graph/SKILL.md)：各自包含生成指令、结果校验脚本和测试。知识图谱的 PDF 读取脚本复用同仓库的思维导图读取实现及项目已有 PDF.js，所以交付时需要保留这两个 Skill 目录。可以参照它们的输入与输出约定开发其他功能。若使用 `references/` 或 `scripts/`，在 `SKILL.md` 中写明何时读取、如何执行以及需要的依赖。程序应接收本次任务给出的输入和输出路径，不固定某位开发者的用户名、教材位置或账号。
 
 接入操作：
 
@@ -111,7 +131,7 @@ export const tutoringSkills = [
 
 思维导图和知识图谱使用 `section`、`chapter`、`book`、`selection` 四种范围。其中 `section` 包含该节的下级小节，`chapter` 包含章内各节；`chapter` 上下文字段按所选范围提供 PDF 目录中的节（二级条目）或章（一级条目）及其起始页。不要将当前页正文当作整节或整章；未提供目录定位时，先从原始 PDF 确定范围，无法确定则询问用户。
 
-## 5. 如何把结果显示到右侧结果区
+## 5. 如何把结果显示到中间资料区
 
 普通问答直接输出中文与 Markdown，公式会自动显示。用户要求保存学习资料时：
 
@@ -137,7 +157,7 @@ export const tutoringSkills = [
 | `markdown` | `content` 字符串 | 带公式的文字资料 |
 | `mindmap` | `nodes: [{id, label, page?}]`、`edges: [{source, target, label?}]` | 可移动缩放的图；节点可跳到教材页码 |
 | `knowledge-graph` | 新结果使用 [v2 数据约定](../skills/knowledge-graph/references/schema.md)，包含概念、逐条关系依据、深度和覆盖清单 | 彩色概念网络；节点和关系依据可分别跳回教材 |
-| `slides` | `slides: [{title, content}]`，可选 `url` | 逐页课件；可下载实际生成的附件 |
+| `slides` | PDF 课件使用 `chapters: [{title, url, filename?}]`，可选 `sourceUrl`；文字课件使用 `slides: [{title, content}]`，可选 `url` | 章节 PDF 预览、下载和源文件 ZIP；逐页文字课件 |
 | `video` | `url`，可选 `filename` | 视频播放 |
 | `file` | `url`，可选 `filename` | 文件下载 |
 
@@ -151,57 +171,28 @@ Agent 将新图谱写入任务给定的 `pending-*.json` 路径，公共服务�
 
 思维导图节点的 `label` 是只读生成原文，始终显示黑色。用户右键只能编辑自己的补充 `userText`，补充始终显示蓝色。生成时提供 `label` 即可，不需要生成用户补充。前端通过 `PATCH /api/courses/:courseId/artifacts/:artifactId/nodes/:nodeId` 发送 `{userText}`，最多2000个字符，空字符串表示清空补充；接口拒绝修改 `label` 或 `originalLabel`。服务从现有结果文件读取并仅更新指定节点的补充，再返回完整资料；旧阅读状态和历史对话不会覆盖补充。此接口只允许编辑已有的 `mindmap`，不创建资料或节点。旧版 `originalLabel` 仅用于兼容：恢复原始文字，将旧 `label` 相对原文新增的部分转换成补充。
 
+仓库中的 [`textbook-to-ppt`](../skills/textbook-to-ppt/SKILL.md) 使用 LaTeX Beamer 生成章节 PDF，并在 [`materials.mjs`](../server/skills/materials.mjs) 配置默认路径。具体输入范围、编译方式和返回示例见 [课件接入说明](../skills/textbook-to-ppt/references/course-copilot.md)。Agent 需要在部署机器上调用已安装的 XeLaTeX。各章文件地址与源文件 ZIP 地址都经过课程输出目录的路径转换和文件存在性检查。源文件 ZIP 收录可重新编译的项目文件。
+
+课件请求可携带 `templateId`，取值为 `navy`、`ivory` 或 `banner`；省略时沿用当前课件的模板，新建使用 `navy`。模板目录由 `server/slide-templates.mjs` 提供，前端从 Skill 信息的 `templates` 字段读取选项。课件结果可用 `templateId` 记录实际采用的模板，供后续修改沿用。用户正文中的明确版式要求优先；自行设计的版式省略模板字段并保留源码。
+
+`server/latex-environment.mjs` 查询 XeLaTeX 及其安装中的宏包和字体。`/api/agent/status` 返回 `latex` 检查信息；生成任务收到同一组信息并运行实际编译。增加模板依赖时同步更新环境检查中的资源列表。
+
 `url` 指向已经存在的课程输出文件，可以使用 `outputs` 下的相对路径或完整本地路径；服务会转换成当前课程的浏览器地址。远程下载链接不能直接作为这里的文件结果。不要返回并未生成的 PDF、PPTX 或视频地址。
 
 例如「习题生成」可以使用 `markdown`，不需要新建一种结果类型。只有现有类型确实无法表达时，才一起修改 [`Artifact` 类型](../src/lib/types.ts)、[`normalizeArtifact` 与文件保存](../server/course-store.mjs)、[`ArtifactViewer`](../src/components/ArtifactViewer.tsx) 以及 [`server/agent.mjs`](../server/agent.mjs) 中告诉 Agent 的结果格式。
 
 ## 6. 新增一个功能按钮
 
-以新增 `quiz`「生成习题」为例，使用现有的 `markdown` 展示练习题。当前功能列表是明确写在源码中的，需要同时修改以下四处：
+当前已有的 `quiz`「知识点出题」和 `textbook-parse`「教材解析」无需再添加按钮。新增其他功能时，需要同时更新以下位置：
 
 | 修改位置 | 添加内容 |
 | --- | --- |
-| [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) 的 `tutoringSkills` | 功能的 `id`、`title`、`description`、`path` |
-| [`src/lib/types.ts`](../src/lib/types.ts) 的 `SkillId` | 增加 `'quiz'` |
-| [`src/components/CopilotPanel.tsx`](../src/components/CopilotPanel.tsx) 的 `tools` | 新按钮的名称、图标和初始要求 |
-| [`src/components/AgentConnection.tsx`](../src/components/AgentConnection.tsx) 的 `groups` | 把 `quiz` 放进对应分组，使设置页出现路径输入框 |
+| 对应的 `server/skills/*.mjs` | 功能的唯一 ID、名称、说明和默认 Skill 路径 |
+| `src/lib/types.ts` | 在 `SkillId` 中增加该 ID |
+| `src/components/CopilotPanel.tsx` | 添加名称、图标和初始要求 |
+| `src/components/AgentConnection.tsx` | 将 ID 放入对应分组，显示路径输入框 |
 
-服务端条目添加到已有数组中：
-
-```js
-{
-  id: 'quiz',
-  title: '生成习题',
-  description: '围绕当前教材内容生成练习题、参考答案和解析。',
-  path: null,
-}
-```
-
-类型增加一个成员，保留原有成员：
-
-```ts
-export type SkillId = 'chat' | 'explain' | 'mindmap' | 'knowledge-graph' | 'slides' | 'video' | 'quiz';
-```
-
-前端 `tools` 数组添加条目，`BookOpen` 已在该文件导入：
-
-```ts
-{
-  id: 'quiz',
-  title: '生成习题',
-  subtitle: '检查理解程度',
-  icon: BookOpen,
-  prompt: '请根据当前内容生成练习题，附参考答案与解析，并保存为学习资料。',
-},
-```
-
-设置页对应分组修改为：
-
-```ts
-{ name: '讲解与问答', owner: '同学 A', ids: ['explain', 'quiz'] },
-```
-
-四处使用同一个唯一 ID，并在自己的 `skills/quiz/SKILL.md` 中写明实际方法。`path: null` 表示先由每位部署者在设置页选择真实路径；也可以采用上一节的方式，为随仓库提供的 Skill 设置默认路径。
+普通学习资料可以继续使用 `markdown`，无须添加新的展示类型。需兼容旧浏览器记录时，也要在 `src/lib/storage.ts` 的记录识别中加入对应 ID。
 
 如果新功能确实需要独立的目录列表文件，例如 `server/skills/assessment.mjs`，可以在那里导出 `assessmentSkills`。再在 `server/agent.mjs` 导入它并展开到 `skillsCatalog` 中；前端三处修改仍然需要完成。已有三组功能的开发者通常直接在自己负责的文件中加条目即可。
 
@@ -225,7 +216,7 @@ export type SkillId = 'chat' | 'explain' | 'mindmap' | 'knowledge-graph' | 'slid
 | 页面出现按钮，但发送返回未找到功能 | 服务端功能列表是否有同一 ID；独立列表是否已加入 `skillsCatalog`；服务是否已重新启动 |
 | 新功能没有路径输入框 | 是否将 ID 加入设置页 `groups` |
 | Skill 已配置但执行失败 | 原生 Agent 的登录、权限、模型额度，以及 Skill 所需程序是否可用 |
-| 回答完成，右侧未显示生成资料 | 是否按本次任务指定的路径和 ID 写出结果 JSON，而不只是生成了一个 Markdown 文件 |
+| 回答完成，资料区未显示生成资料 | 是否按本次任务指定的路径和 ID 写出结果 JSON，而不只是生成了一个 Markdown 文件 |
 | 附件无法打开 | 文件是否真实存在于该课程的 `outputs`，`url` 是否引用了正确位置 |
 | 换电脑后路径失效 | 更新个人设置中的 Skill 路径，或使用随仓库计算的默认路径 |
 

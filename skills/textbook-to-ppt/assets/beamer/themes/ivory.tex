@@ -1,0 +1,17 @@
+\definecolor{Page}{HTML}{FBF8F0}
+\definecolor{Ink}{HTML}{332D29}
+\definecolor{Accent}{HTML}{853B35}
+\definecolor{Muted}{HTML}{82786A}
+\definecolor{Highlight}{HTML}{AD6C24}
+\definecolor{Panel}{HTML}{F4EDE0}
+\renewcommand{\familydefault}{\rmdefault}
+\setbeamerfont{normal text}{family=\rmfamily}
+\setbeamerfont{frametitle}{family=\rmfamily,size=\Large,series=\bfseries}
+\setbeamercolor{normal text}{fg=Ink,bg=Page}
+\setbeamercolor{structure}{fg=Accent}
+\setbeamercolor{frametitle}{fg=Accent}
+\setbeamercolor{block title}{fg=Accent,bg=Page}
+\setbeamercolor{block body}{fg=Ink,bg=Page}
+\setbeamertemplate{frametitle}{\vspace{4mm}\centering\insertframetitle\par\vspace{2.5mm}{\color{Muted}\hrule height .3pt}\vspace{2mm}}
+\setbeamertemplate{block begin}{\par\vspace{2mm}{\color{Accent}\hrule height .5pt}\vspace{2mm}\usebeamerfont{block title}\usebeamercolor[fg]{block title}\insertblocktitle\par\usebeamerfont{block body}\usebeamercolor[fg]{block body}}
+\setbeamertemplate{block end}{\par\vspace{1mm}{\color{Muted}\hrule height .3pt}\vspace{2mm}}

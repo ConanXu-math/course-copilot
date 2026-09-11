@@ -50,7 +50,8 @@ async function serveFile(req, res, path) {
   const types = { '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
     '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
-    '.md': 'text/plain; charset=utf-8', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
+    '.md': 'text/plain; charset=utf-8', '.tex': 'text/plain; charset=utf-8', '.zip': 'application/zip',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
   const headers = { 'Content-Type': types[extname(path).toLowerCase()] || 'application/octet-stream',
     'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' };
   let start = 0;
