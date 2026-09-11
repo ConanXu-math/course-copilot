@@ -1,7 +1,5 @@
 /* Small compatibility rules for local features in the upstream three-column layout. */
 .reading-tab { flex-shrink: 0; }
-.reading-location { flex-shrink: 0; }
-.reading-location > span:first-child { white-space: nowrap; }
 .reading-panel > .artifact-viewer { min-width: 0; overflow: hidden; }
 .reading-panel .graph-view { min-height: 0; }
 .copilot-panel { overflow: hidden; }
