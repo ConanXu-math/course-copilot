@@ -251,3 +251,5 @@ ACP 模式将公共教学要求、教材上下文与本轮要求交给同一个�
 连接接口包括 `POST /api/agent/connect`、`disconnect`、`login`、`login/cancel` 和 `PATCH /api/agent/config`。这些操作使用 JSON 请求体；配置仅写入个人 `settings.json` 的 `agent` 字段。
 
 后续开发方向见 [围绕知识点的学习流程](docs/learning-flow.md)：图谱选点 → 讲解 → 作答 → 针对性补讲 → 变式练习，文档区分已有能力与待开发部分。
+
+另一个已记录的方向是 [数学与算法实验](docs/math-experiments.md)：调整参数、比较方法，交付真实运行结果、图形和可运行代码，首先考虑用梯度下降的步长实验辅助理解教材。
