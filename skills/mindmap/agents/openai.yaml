@@ -1,0 +1,4 @@
+interface:
+  display_name: "教材思维导图"
+  short_description: "从真实教材提炼章、节或选文的知识层次，生成可点击回到 PDF 原页的导图"
+  default_prompt: "使用 $mindmap 将本次选定范围整理为知页可展示的思维导图，并核对知识点的 PDF 页码。"

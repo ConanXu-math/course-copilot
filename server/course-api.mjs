@@ -4,6 +4,7 @@ import { extname } from 'node:path';
 import {
   getStorageInfo, updateSettings, listCourses, importCourse, getState, saveState,
   updateTextbook, savePage, resolveCourseFile, listConversations, getConversation, migrateState,
+  updateMindmapNode,
 } from './course-store.mjs';
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
@@ -99,6 +100,12 @@ export async function handleCourseApi(req, res) {
         json(res, 201, await importCourse(req, filename, url.searchParams.get('legacyId') ?? undefined));
       }
     } else {
+      const nodeMatch = /^\/api\/courses\/([^/]+)\/artifacts\/([^/]+)\/nodes\/([^/]+)$/.exec(path);
+      if (nodeMatch) {
+        method(req, 'PATCH');
+        json(res, 200, await updateMindmapNode(decode(nodeMatch[1]), decode(nodeMatch[2]), decode(nodeMatch[3]), await body(req)));
+        return true;
+      }
       const match = /^\/api\/courses\/([^/]+)\/(state|textbook|pages\/(\d+)|outputs\/(.+)|conversations(?:\/([^/]+))?|migrate)$/.exec(path);
       if (!match) fail(404, '没有找到这个课程接口。');
       const id = decode(match[1]);

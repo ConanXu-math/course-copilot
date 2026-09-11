@@ -1,0 +1,4 @@
+interface:
+  display_name: "教材知识图谱"
+  short_description: "从真实教材提炼概念及有向关系，核对正文依据与 PDF 页码，生成可回看的知识图谱"
+  default_prompt: "使用 $knowledge-graph 梳理本次教材范围内的核心概念及其关系，核对依据和 PDF 页码，生成知页可展示的知识图谱。"

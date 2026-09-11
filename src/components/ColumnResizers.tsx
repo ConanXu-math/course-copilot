@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 type Column = 'sidebar' | 'copilot';
 type Widths = Record<Column, number>;
 const minimum = { sidebar: 170, copilot: 320 };
-const maximum = { sidebar: 380, copilot: 680 };
+const maximumSidebar = 380;
 
 function defaults(width: number): Widths {
   return { sidebar: width >= 1600 ? 245 : width > 1190 ? 224 : 192, copilot: width >= 1600 ? 410 : width > 1190 ? 380 : width > 960 ? 338 : 330 };
@@ -29,11 +29,13 @@ export function useColumnWidths(outlineOpen: boolean, saved: Partial<Widths> | n
   const readerMinimum = width > 960 ? 340 : 280;
   const sidebar = Math.min(preferred.sidebar ?? fallback.sidebar, Math.max(minimum.sidebar, width - minimum.copilot - readerMinimum));
   const sidebarSpace = hasSidebar ? sidebar : 0;
-  const copilot = Math.max(minimum.copilot, Math.min(preferred.copilot ?? fallback.copilot, width - sidebarSpace - readerMinimum));
+  const contentWidth = width - sidebarSpace;
+  const copilotLimit = Math.max(minimum.copilot, Math.min(contentWidth / 2, contentWidth - readerMinimum));
+  const copilot = Math.max(minimum.copilot, Math.min(preferred.copilot ?? fallback.copilot, copilotLimit));
   const widths = { sidebar, copilot };
   const limits = {
-    sidebar: Math.max(minimum.sidebar, Math.min(maximum.sidebar, width - copilot - readerMinimum)),
-    copilot: Math.max(minimum.copilot, Math.min(maximum.copilot, width - sidebarSpace - readerMinimum)),
+    sidebar: Math.max(minimum.sidebar, Math.min(maximumSidebar, width - copilot - readerMinimum)),
+    copilot: copilotLimit,
   };
 
   useLayoutEffect(() => {
@@ -124,9 +126,9 @@ function ColumnResizers({ workspaceRef, widths, limits, hasSidebar, desktop, onR
   if (!desktop) return null;
   return <>{(['sidebar', 'copilot'] as const).filter(column => column !== 'sidebar' || hasSidebar).map(column => <div
     key={column} role="separator" aria-orientation="vertical" tabIndex={0}
-    aria-label={column === 'sidebar' ? '调整目录宽度' : '调整教材与 Copilot 宽度'}
+    aria-label={column === 'sidebar' ? '调整目录宽度' : '调整教材与回答区宽度'}
     aria-valuemin={minimum[column]} aria-valuemax={Math.round(limits[column])} aria-valuenow={Math.round(widths[column])}
-    aria-valuetext={`${Math.round(widths[column])} 像素`} aria-controls={column === 'sidebar' ? 'course-outline' : 'course-reading'}
+    aria-valuetext={`${Math.round(widths[column])} 像素`} aria-controls={column === 'sidebar' ? 'course-outline' : 'course-reading course-results'}
     title="左右拖动调整宽度 · 双击恢复默认 · 方向键微调"
     className={`column-resizer column-resizer-${column}`}
     onPointerDown={event => begin(event, column)} onPointerMove={move}

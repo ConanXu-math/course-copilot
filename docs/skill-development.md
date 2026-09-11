@@ -54,7 +54,7 @@ description: 根据当前教材页、章节或选中文字解释概念与公式�
 使用脚本前先确认所需依赖可用；步骤失败时说明原因，不声称生成成功。
 ````
 
-这是供开发者继续完善的起点，仓库没有默认启用一份占位 Skill。若使用 `references/` 或 `scripts/`，在 `SKILL.md` 中写明何时读取、如何执行以及需要的依赖。程序应接收本次任务给出的输入和输出路径，不固定某位开发者的用户名、教材位置或账号。
+上面的讲解 Skill 是供开发者继续完善的示例。仓库已提供 [`skills/mindmap/`](../skills/mindmap/SKILL.md) 和 [`skills/knowledge-graph/`](../skills/knowledge-graph/SKILL.md)：各自包含生成指令、结果校验脚本和测试。知识图谱的 PDF 读取脚本复用同仓库的思维导图读取实现及项目已有 PDF.js，所以交付时需要保留这两个 Skill 目录。可以参照它们的输入与输出约定开发其他功能。若使用 `references/` 或 `scripts/`，在 `SKILL.md` 中写明何时读取、如何执行以及需要的依赖。程序应接收本次任务给出的输入和输出路径，不固定某位开发者的用户名、教材位置或账号。
 
 接入操作：
 
@@ -95,18 +95,23 @@ export const tutoringSkills = [
 | --- | --- |
 | `prompt`、`skillId` | 学生要求和所选功能 |
 | `book`、`chapter`、`page` | 教材、章节和 PDF 页码 |
-| `scope` | `page` 当前页、`chapter` 当前章节、`selection` 选中内容、`book` 整本教材 |
+| `scope` | `page` 当前页、`section` 当前节、`chapter` 当前章（其他工具为当前章节）、`selection` 选中内容、`book` 整本教材 |
+| `knowledgeGraphDetail` | 知识图谱的 `overview` 概览或 `detailed` 详细模式；默认概览，本次文字明确指定的深度优先 |
 | `pageText`、`selectedText` | 已提取的当前页正文、学生选中文字 |
 | `history` | 当前对话的历史问答 |
 | `artifact` | 正在查看、可能需要继续修改的学习资料 |
 
 [`server/agent.mjs`](../server/agent.mjs) 再根据课程 ID 查找真实的课程目录，告诉 Agent：原始 PDF 路径、解析内容目录、`outputs` 路径、选定 Skill 的路径，以及本次结果 JSON 的完整路径和 ID。
 
+知识图谱还会提供本课程的已有概念目录 `conceptCatalogPath`，供 Agent 复用含义一致的 `conceptKey` 和别名；它只帮助统一概念名称，不是教材关系的证据。其来源章、节及范围由服务根据真实请求和目录记录，Agent 不自行编造来源字段。
+
 这些信息是交给 Agent 的任务上下文，不是自动注入 Skill 脚本的环境变量，也不是要求每个 Skill 实现一个 `run(request, context)` 函数。若 Skill 需要调用程序，由 Agent 按 `SKILL.md` 将这些实际路径作为程序参数传入。
 
 `textbook/pages/` 保存的是已经阅读并提取的页面，不保证整本书已解析。整章、整书任务需要按实际情况读取原始 PDF 或使用相应的解析能力。
 
-## 5. 如何把结果显示到左侧
+思维导图和知识图谱使用 `section`、`chapter`、`book`、`selection` 四种范围。其中 `section` 包含该节的下级小节，`chapter` 包含章内各节；`chapter` 上下文字段按所选范围提供 PDF 目录中的节（二级条目）或章（一级条目）及其起始页。不要将当前页正文当作整节或整章；未提供目录定位时，先从原始 PDF 确定范围，无法确定则询问用户。
+
+## 5. 如何把结果显示到右侧结果区
 
 普通问答直接输出中文与 Markdown，公式会自动显示。用户要求保存学习资料时：
 
@@ -130,12 +135,21 @@ export const tutoringSkills = [
 | `kind` | 需要的字段 | 页面展示 |
 | --- | --- | --- |
 | `markdown` | `content` 字符串 | 带公式的文字资料 |
-| `mindmap`、`knowledge-graph` | `nodes: [{id, label, page?}]`、`edges: [{source, target, label?}]` | 可移动缩放的图；节点可跳到教材页码 |
+| `mindmap` | `nodes: [{id, label, page?}]`、`edges: [{source, target, label?}]` | 可移动缩放的图；节点可跳到教材页码 |
+| `knowledge-graph` | 新结果使用 [v2 数据约定](../skills/knowledge-graph/references/schema.md)，包含概念、逐条关系依据、深度和覆盖清单 | 彩色概念网络；节点和关系依据可分别跳回教材 |
 | `slides` | `slides: [{title, content}]`，可选 `url` | 逐页课件；可下载实际生成的附件 |
 | `video` | `url`，可选 `filename` | 视频播放 |
 | `file` | `url`，可选 `filename` | 文件下载 |
 
 所有结果还需要 `id` 和 `title`。图的节点 ID 应唯一，连线端点应引用存在的节点，`page` 使用 PDF 页序。`slides` 的正文和文字资料一样支持 Markdown 与数学公式。
+
+知识图谱的字段、示例和逐条证据要求统一维护在 [v2 数据约定](../skills/knowledge-graph/references/schema.md)。内置 Skill 区分概览与详细深度，检查关系两端的语义角色、方向和成立条件，并记录已覆盖、有意省略及未读主题。每条关系都有自己的证据页码；同一有向节点对可以有多条不同关系。
+
+Agent 将新图谱写入任务给定的 `pending-*.json` 路径，公共服务按真实 PDF 总页数强制校验 v2，成功后才正式保存为 `result-*`。格式、证据或页码不合格的文件不会出现在资料列表。旧图谱保持兼容，不伪造或自动补填缺失的关系依据。校验不能证明语义正确，Skill 仍需核对教材正文、条件及覆盖范围。可运行 `node --test skills/knowledge-graph/scripts/*.test.mjs` 验证校验器和读取封装。
+
+页面的颜色依据实际连接的社区分组、圆点大小依据不同邻居数；这些显示属性不代表教材的章、节或知识重要性。点击节点后显示完整 Markdown/公式及方向关系列表，展开关系可以查看其条件、依据和 PDF 回跳按钮。概览/详细表示内容展开深度，与画面缩放不同。图谱的个人补充编辑不属于本次功能。
+
+思维导图节点的 `label` 是只读生成原文，始终显示黑色。用户右键只能编辑自己的补充 `userText`，补充始终显示蓝色。生成时提供 `label` 即可，不需要生成用户补充。前端通过 `PATCH /api/courses/:courseId/artifacts/:artifactId/nodes/:nodeId` 发送 `{userText}`，最多2000个字符，空字符串表示清空补充；接口拒绝修改 `label` 或 `originalLabel`。服务从现有结果文件读取并仅更新指定节点的补充，再返回完整资料；旧阅读状态和历史对话不会覆盖补充。此接口只允许编辑已有的 `mindmap`，不创建资料或节点。旧版 `originalLabel` 仅用于兼容：恢复原始文字，将旧 `label` 相对原文新增的部分转换成补充。
 
 `url` 指向已经存在的课程输出文件，可以使用 `outputs` 下的相对路径或完整本地路径；服务会转换成当前课程的浏览器地址。远程下载链接不能直接作为这里的文件结果。不要返回并未生成的 PDF、PPTX 或视频地址。
 
@@ -197,6 +211,10 @@ export type SkillId = 'chat' | 'explain' | 'mindmap' | 'knowledge-graph' | 'slid
 
 提交前执行 `npm run build`。然后用真实教材完成一次实际任务：选择正确范围、发送要求、查看回答，生成资料时打开对应结果和文件。检查公式、页码引用、保存位置与刷新后的资料恢复；长任务还应检查停止后是否结束执行。将实际运行的 Agent、教材、完成结果和未解决的问题写进提交说明。
 
+内置思维导图的辅助脚本测试可用 `node --test skills/mindmap/scripts/*.test.mjs` 运行，知识图谱可用 `node --test skills/knowledge-graph/scripts/*.test.mjs`；正文读取脚本的参数与结果校验方法见各自的 `SKILL.md`。图结构测试不能替代教材内容与范围的人工核对。
+
+知识图谱布局由 `src/lib/knowledge-network-layout.ts` 负责：复制输入后计算确定性力导向布局和连接社区，不把坐标、速度、颜色或对象形式的端点写回资料。`src/components/KnowledgeGraphView.tsx` 与 `knowledge-network.css` 负责SVG网络、搜索、选择详情、拖动和缩放；思维导图继续使用原来的查看器。运行 `node --experimental-strip-types --test tests/knowledge-network-layout.test.ts` 可检查数据保持、社区与邻居计数、孤立节点/环/重复关系、碰撞及200节点布局。这些页面布局检查与Skill的内容及格式校验分别维护。
+
 首次使用新 Agent 或新增外部工具依赖时，说明所需安装条件及实际使用过的版本。Skill 目录可以随代码提交，个人教材、账号凭据、课程对话和本机绝对路径由各部署者自行保存。
 
 ## 8. 常见问题
@@ -207,7 +225,7 @@ export type SkillId = 'chat' | 'explain' | 'mindmap' | 'knowledge-graph' | 'slid
 | 页面出现按钮，但发送返回未找到功能 | 服务端功能列表是否有同一 ID；独立列表是否已加入 `skillsCatalog`；服务是否已重新启动 |
 | 新功能没有路径输入框 | 是否将 ID 加入设置页 `groups` |
 | Skill 已配置但执行失败 | 原生 Agent 的登录、权限、模型额度，以及 Skill 所需程序是否可用 |
-| 回答完成，左侧没有学习资料 | 是否按本次任务指定的路径和 ID 写出结果 JSON，而不只是生成了一个 Markdown 文件 |
+| 回答完成，右侧未显示生成资料 | 是否按本次任务指定的路径和 ID 写出结果 JSON，而不只是生成了一个 Markdown 文件 |
 | 附件无法打开 | 文件是否真实存在于该课程的 `outputs`，`url` 是否引用了正确位置 |
 | 换电脑后路径失效 | 更新个人设置中的 Skill 路径，或使用随仓库计算的默认路径 |
 

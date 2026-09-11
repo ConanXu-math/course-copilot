@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>知识图谱前端验证</title></head>
+<body style="overflow:auto"><div id="root" style="height:auto;min-height:100%"></div><script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import KnowledgeGraphView from '/src/components/KnowledgeGraphView.tsx';
+import CopilotPanel from '/src/components/CopilotPanel.tsx';
+import '/src/styles.css';
+import '/src/course-layout.css';
+
+const h = React.createElement;
+const book = { id: 'ui-fixture', title: '前端验证样例', filename: 'fixture.pdf', url: '', totalPages: 20, chapters: [] };
+const artifact = {
+  id: 'ui-graph', kind: 'knowledge-graph', title: '前端验证样例（非教材资料）', schemaVersion: 2, detailLevel: 'detailed',
+  coverage: { summary: '这是前端显示验证用的覆盖说明，不代表任何教材的实际覆盖情况。', items: [
+    { title: '测试单元甲', pages: [11], status: 'covered', note: '验证已覆盖状态和页码入口。' },
+    { title: '测试单元乙', pages: [12], status: 'omitted', note: '验证未纳入本图状态。' },
+    { title: '测试单元丙', pages: [], status: 'unread', note: '验证未读取、尚无可靠页码的状态。' },
+  ] },
+  nodes: [
+    { id: 'a', label: '模型甲', conceptKey: 'fixture.a', type: '模型', page: 11, aliases: ['Example A', '示例甲'], description: '这是验证用的完整说明，包含 **加粗文字** 和公式 $x^2 + y^2$。' },
+    { id: 'b', label: '模型族', conceptKey: 'fixture.family', type: '概念', page: 12 },
+    { id: 'c', label: '条件乙', conceptKey: 'fixture.condition', type: '条件', page: 13 },
+  ],
+  edges: [
+    { id: 'e1', source: 'a', target: 'b', label: '属于', basis: 'textbook', conditions: '仅在条件甲成立时。', evidence: [{ page: 11, summary: '这是第一条关系的测试依据摘要，不是真实教材证据。', location: '测试段落甲' }] },
+    { id: 'e2', source: 'a', target: 'b', label: '可推广到', basis: 'inference', conditions: '还需补充条件乙。', evidence: [{ page: 11, summary: '测试前提之一。' }, { page: 12, summary: '测试前提之二。' }] },
+    { id: 'e3', source: 'c', target: 'a', label: '约束', basis: 'textbook', evidence: [{ page: 13, summary: '验证入边方向的测试摘要。' }] },
+    { id: 'e4', source: 'b', target: 'a', label: '在指定条件下包含这个模型，并保留完整的中文关系说明', basis: 'textbook', evidence: [{ page: 12, summary: '仅用于验证反向箭头与长关系文字换行的测试摘要。' }] },
+  ],
+};
+const legacy = { id: 'legacy', kind: 'knowledge-graph', title: '旧版前端验证样例', nodes: [{ id: 'a', label: '旧概念甲', page: 11 }, { id: 'b', label: '旧概念乙', page: 12 }], edges: [{ source: 'a', target: 'b', label: '关联' }] };
+
+function Preview() {
+  const [old, setOld] = React.useState(false), [message, setMessage] = React.useState('尚未操作'), [bookIndex, setBookIndex] = React.useState(0);
+  return h('main', { style: { maxWidth: 760, margin: '0 auto', padding: 12 } },
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 10, fontSize: 12 } },
+      h('strong', null, '前端验证样例 · 不读取或写入课程数据'),
+      h('button', { onClick: () => setOld(!old) }, old ? '显示新版' : '显示旧版'),
+      h('button', { onClick: () => setBookIndex(bookIndex + 1) }, '切换测试教材')),
+    h('div', { style: { height: 670, display: 'flex', border: '1px solid #ddd' } }, h(KnowledgeGraphView, { key: old ? 'old' : 'new', artifact: old ? legacy : artifact, book, onPage: page => setMessage(`打开 PDF 第 ${page} 页`) })),
+    h(CopilotPanel, { book: { ...book, id: `ui-fixture-${bookIndex}` }, page: 11, selectedText: '', onClearSelection() {}, onClearArtifact() {}, skills: [{ id: 'knowledge-graph', available: true }], busy: false, onStop() {}, onSettings() {}, onSend: (id, prompt, scope, detail) => setMessage(JSON.stringify({ id, prompt, scope, detail })) }),
+    h('output', { style: { display: 'block', padding: 10, fontSize: 12, overflowWrap: 'anywhere' }, 'aria-label': '验证操作结果' }, message));
+}
+createRoot(document.getElementById('root')).render(h(Preview));
+</script></body></html>

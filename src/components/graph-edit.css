@@ -1,0 +1,86 @@
+.react-flow__node-default.course-graph-node {
+  --graph-node-ink: #000;
+  color: var(--graph-node-ink) !important;
+}
+.mindmap-node .graph-node-original { --graph-node-ink: #000; }
+.mindmap-node .graph-node-addition { --graph-node-ink: #2563eb; margin-top: 8px; }
+.course-graph-node .graph-node-content { width: 100%; min-width: 0; }
+.course-graph-node .graph-node-label {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.course-graph-node .graph-node-label .markdown pre {
+  max-width: 100%;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.course-graph-node .graph-node-label .markdown pre code {
+  white-space: inherit;
+  overflow-wrap: inherit;
+}
+.course-graph-node .graph-node-label .markdown ul,
+.course-graph-node .graph-node-label .markdown ol { text-align: left; }
+.course-graph-node .graph-node-label .katex-display {
+  overflow: visible;
+}
+.course-graph-node .graph-node-label .katex-display > .katex {
+  white-space: normal;
+}
+.course-graph-node .graph-node-label,
+.course-graph-node .graph-node-label * { color: var(--graph-node-ink) !important; }
+.course-graph-node .graph-node-label .katex svg { fill: currentColor; }
+.graph-node-edit {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  border: 1px solid var(--accent-border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity .12s;
+}
+.mindmap-node:hover .graph-node-edit,
+.mindmap-node:focus-within .graph-node-edit,
+.graph-node-edit:focus-visible { opacity: 1; }
+.graph-node-edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.graph-edit-dialog { width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+.graph-edit-form { display: flex; flex-direction: column; gap: 10px; padding: 22px; }
+.graph-edit-original-heading { display: flex; align-items: baseline; gap: 10px; font-size: 13px; font-weight: 500; }
+.graph-edit-original-heading > span { color: var(--muted); font-size: 11px; font-weight: 400; }
+.graph-edit-original { padding: 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-subtle); max-height: 25vh; overflow: auto; font-size: 14px; }
+.graph-edit-original .markdown,
+.graph-edit-original .markdown * { color: #000 !important; }
+.graph-edit-original .katex svg { fill: currentColor; }
+.graph-edit-form > label { font-size: 13px; font-weight: 500; }
+.graph-edit-form > textarea {
+  width: 100%;
+  min-height: 130px;
+  max-height: 35vh;
+  resize: vertical;
+  padding: 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: #2563eb;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.graph-edit-form > textarea:focus { outline: 2px solid var(--accent-border); border-color: var(--accent); }
+.graph-edit-form > textarea[aria-invalid="true"] { border-color: #b42336; }
+.graph-edit-help { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted); }
+.graph-edit-error { margin: 0; font-size: 12px; line-height: 1.6; color: #b42336; }
+.graph-edit-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
+.graph-edit-actions > button { min-width: 70px; justify-content: center; }
+@media (hover: none) { .graph-node-edit { opacity: 1; } }
+@media (max-width: 700px) { .graph-edit-form { padding: 18px; } }

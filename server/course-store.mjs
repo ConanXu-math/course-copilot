@@ -3,11 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeMindmapNode } from '../shared/mindmap-text.mjs';
+import { validateKnowledgeGraph } from '../skills/knowledge-graph/scripts/validate-knowledge-graph.mjs';
 
 const configuredHome = process.env.COURSE_COPILOT_HOME || resolve(homedir(), '.course-copilot');
 let directory = resolve(configuredHome.replace(/^~(?=\/|$)/, homedir()));
 let initialization;
 const writes = new Map();
+const generationSnapshots = new Map();
 const pdfLimit = 100 * 1024 * 1024;
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
@@ -26,6 +29,13 @@ function serial(key, work) {
   writes.set(key, current);
   void current.finally(() => { if (writes.get(key) === current) writes.delete(key); }).catch(() => {});
   return current;
+}
+
+function updateGenerationSnapshots(id, artifact) {
+  for (const snapshot of generationSnapshots.get(id) || []) {
+    snapshot.set(artifact.id, structuredClone(artifact));
+    snapshot.files?.set(`result-${recordName(artifact.id)}.json`, `${JSON.stringify(artifact, null, 2)}\n`);
+  }
 }
 
 // 所有课程文件都从个人目录逐层访问，不穿过符号链接。
@@ -247,9 +257,9 @@ export async function importCourse(stream, filename, legacyId) {
 }
 
 export async function getCoursePaths(id) {
-  const { courseDir } = await courseRecord(id);
+  const { courseDir, totalPages } = await courseRecord(id);
   return {
-    courseDir, textbookPath: await safePath(courseDir, 'textbook.pdf'),
+    courseDir, totalPages, textbookPath: await safePath(courseDir, 'textbook.pdf'),
     textbookDir: await safePath(courseDir, 'textbook'), outputsDir: await safePath(courseDir, 'outputs'),
   };
 }
@@ -277,6 +287,18 @@ export async function resolveCourseFile(id, filename) {
   return path;
 }
 
+function normalizeArtifactSource(source) {
+  if (!object(source) || !['page', 'section', 'chapter', 'selection', 'book'].includes(source.scope)
+      || !positive(source.page)
+      || !['chapterId', 'sectionId'].every(key => source[key] === undefined
+        || (typeof source[key] === 'string' && source[key].trim()))) return undefined;
+  return {
+    scope: source.scope, page: source.page,
+    ...(source.chapterId === undefined ? {} : { chapterId: source.chapterId }),
+    ...(source.sectionId === undefined ? {} : { sectionId: source.sectionId }),
+  };
+}
+
 function normalizeArtifact(record, artifact) {
   if (!object(artifact) || typeof artifact.title !== 'string'
       || !['markdown', 'mindmap', 'knowledge-graph', 'slides', 'video', 'file'].includes(artifact.kind)) {
@@ -288,16 +310,27 @@ function normalizeArtifact(record, artifact) {
       && typeof slide.title === 'string' && typeof slide.content === 'string'))) fail(400, '课件需要包含标题和正文的页面列表。');
   if (['mindmap', 'knowledge-graph'].includes(artifact.kind)) {
     if (!Array.isArray(artifact.nodes) || !artifact.nodes.every((node) => object(node) && typeof node.id === 'string'
-        && node.id.trim() && typeof node.label === 'string' && (node.page === undefined || positive(node.page)))
+        && node.id.trim() && typeof node.label === 'string' && (node.page === undefined || positive(node.page))
+        && (node.originalLabel === undefined || typeof node.originalLabel === 'string')
+        && (node.userText === undefined || typeof node.userText === 'string'))
         || !Array.isArray(artifact.edges) || !artifact.edges.every((edge) => object(edge)
         && typeof edge.source === 'string' && typeof edge.target === 'string'
         && (edge.label === undefined || typeof edge.label === 'string'))) fail(400, '知识结构需要有效的知识点和连线列表。');
     if (new Set(artifact.nodes.map((node) => node.id)).size !== artifact.nodes.length) fail(400, '知识点名称重复，请为每个知识点使用不同的 id。');
   }
+  if (artifact.kind === 'knowledge-graph' && artifact.schemaVersion !== undefined) {
+    try { validateKnowledgeGraph(artifact, artifact.id, record.totalPages); }
+    catch (error) { fail(400, `知识图谱格式不正确：${error.message}`); }
+  }
   if (artifact.filename !== undefined && typeof artifact.filename !== 'string') fail(400, '生成文件名格式不正确。');
   if ((['video', 'file'].includes(artifact.kind) || artifact.url !== undefined)
       && (typeof artifact.url !== 'string' || !artifact.url.trim())) fail(400, '生成文件缺少本地文件地址。');
   const result = { ...artifact };
+  if (result.kind === 'mindmap') result.nodes = result.nodes.map(normalizeMindmapNode);
+  // 范围只是可选排序信息，旧结果里不合规范的范围不能使整份资料消失。
+  const source = normalizeArtifactSource(result.source);
+  if (source) result.source = source;
+  else delete result.source;
   if (result.url !== undefined) {
     if (/^[a-z][a-z0-9+.-]*:/i.test(result.url) || result.url.startsWith('//')) {
       fail(400, '请先让 Coding Agent 把生成文件保存到当前课程的 outputs 文件夹，再返回本地文件地址。');
@@ -314,7 +347,8 @@ function normalizeArtifact(record, artifact) {
 async function writeArtifact(record, artifact, preserveExisting = false) {
   const incoming = normalizeArtifact(record, artifact);
   const path = await safePath(record.courseDir, 'outputs', `result-${recordName(incoming.id)}.json`);
-  const existing = preserveExisting ? await readJson(path) : undefined;
+  const snapshot = [...(generationSnapshots.get(record.id) || [])].find(items => items.has(incoming.id));
+  const existing = preserveExisting ? snapshot?.get(incoming.id) ?? await readJson(path) : undefined;
   const result = existing ? normalizeArtifact(record, existing) : incoming;
   if (result.url?.startsWith(`/api/courses/${encodeURIComponent(record.id)}/outputs/`)) {
     const prefix = `/api/courses/${encodeURIComponent(record.id)}/outputs/`;
@@ -332,6 +366,7 @@ async function writeArtifact(record, artifact, preserveExisting = false) {
   }
   if (existing) return result;
   await writeJson(path, result);
+  updateGenerationSnapshots(record.id, result);
   return result;
 }
 
@@ -340,7 +375,226 @@ export async function saveArtifact(id, artifact) {
   return serial(id, () => writeArtifact(record, artifact));
 }
 
+function sourceForRequest(request, outline) {
+  const source = normalizeArtifactSource({ scope: request.scope, page: request.page });
+  if (!source || source.scope === 'book') return source;
+  const chapters = (Array.isArray(outline) ? outline : []).filter(item => object(item)
+    && typeof item.id === 'string' && item.id.trim() && positive(item.page)
+    && Number.isInteger(item.level) && item.level >= 0);
+  let chapterIndex = -1;
+  chapters.forEach((item, index) => {
+    if (item.level === 0 && item.page <= source.page
+        && (chapterIndex < 0 || item.page >= chapters[chapterIndex].page)) chapterIndex = index;
+  });
+  const requestedIndex = chapters.findIndex(item => item.id === request.chapter?.id && item.page <= source.page);
+  // 请求里的目录 ID 表示用户选定的范围；级别和父子关系仍取自本课程的真实目录。
+  if (source.scope === 'chapter' && chapters[requestedIndex]?.level === 0) chapterIndex = requestedIndex;
+  if (source.scope === 'section' && chapters[requestedIndex]?.level === 1) {
+    chapterIndex = -1;
+    for (let index = requestedIndex - 1; index >= 0; index--) {
+      if (chapters[index].level === 0) { chapterIndex = index; break; }
+    }
+  }
+  let sectionIndex = -1;
+  if (chapterIndex >= 0) {
+    source.chapterId = chapters[chapterIndex].id;
+    for (let index = chapterIndex + 1; index < chapters.length; index++) {
+      const item = chapters[index];
+      if (item.level === 0) break;
+      if (item.level === 1 && item.page >= chapters[chapterIndex].page && item.page <= source.page
+          && (sectionIndex < 0 || item.page >= chapters[sectionIndex].page)) sectionIndex = index;
+    }
+  }
+  if (source.scope === 'section' && chapters[requestedIndex]?.level === 1) sectionIndex = requestedIndex;
+  if (source.scope !== 'chapter' && sectionIndex >= 0) source.sectionId = chapters[sectionIndex].id;
+  return source;
+}
+
+// 在启动 Agent 前调用：Agent 会直接写 outputs，不能把本次模型写入的 source 当成历史范围。
+export async function createGeneratedArtifactSaver(id, request) {
+  const record = await courseRecord(id);
+  const { existing, source, inherited, graphInherited, conceptCatalogPath } = await serial(id, async () => {
+    const saved = await artifactsFor(record);
+    const existing = new Map(saved.map(artifact => [artifact.id, artifact]));
+    const activeSnapshot = [...(generationSnapshots.get(id) || [])][0];
+    existing.files = new Map(activeSnapshot?.files);
+    if (!activeSnapshot) {
+      const outputs = await safePath(record.courseDir, 'outputs');
+      for (const file of await readdir(outputs, { withFileTypes: true })) {
+        if (file.isFile() && /^result-.+\.json$/.test(file.name)) {
+          existing.files.set(file.name, await readFile(await safePath(outputs, file.name), 'utf8'));
+        }
+      }
+    }
+    const outline = await readJson(resolve(record.courseDir, 'textbook/outline.json'), []);
+    const context = request.skillId === 'chat' && request.artifact?.kind === 'mindmap' ? request.artifact : undefined;
+    const original = context && existing.get(context.id);
+    const inherited = context && (!original || original.kind === 'mindmap')
+      ? normalizeArtifactSource(original ? original.source : context.source) : undefined;
+    const graphContext = request.skillId === 'chat' && request.artifact?.kind === 'knowledge-graph'
+      ? existing.get(request.artifact.id) : undefined;
+    const graphInherited = graphContext?.kind === 'knowledge-graph'
+      ? normalizeArtifactSource(graphContext.source) : undefined;
+    const source = context ? undefined : sourceForRequest(request, outline);
+    let conceptCatalogPath;
+    if (request.skillId === 'knowledge-graph' || request.skillId === 'chat') {
+      // Naming hints only. A repeated label does not establish equal meaning or textbook evidence.
+      const concepts = new Map();
+      for (const artifact of saved) {
+        if (artifact.kind !== 'knowledge-graph') continue;
+        for (const node of artifact.nodes) {
+          if (typeof node.conceptKey !== 'string' || !node.conceptKey.trim()
+              || typeof node.type !== 'string' || !node.type.trim()) continue;
+          const key = JSON.stringify([node.conceptKey, node.type, node.label]);
+          const known = concepts.get(key);
+          const aliases = new Set([...(known?.aliases || []), ...(Array.isArray(node.aliases) ? node.aliases.filter(alias => typeof alias === 'string' && alias.trim()) : [])]);
+          concepts.set(key, { conceptKey: node.conceptKey, type: node.type, label: node.label,
+            aliases: [...aliases], ...(node.description ? { description: node.description } : {}) });
+        }
+      }
+      if (concepts.size) {
+        conceptCatalogPath = await safePath(record.courseDir, 'outputs', 'knowledge-concepts.json');
+        await writeJson(conceptCatalogPath, { concepts: [...concepts.values()] });
+      }
+    }
+    const snapshots = generationSnapshots.get(id) || new Set();
+    snapshots.add(existing);
+    generationSnapshots.set(id, snapshots);
+    return { existing, source, inherited, graphInherited, conceptCatalogPath };
+  });
+  const save = artifact => serial(id, async () => {
+    const previous = existing.get(artifact?.id);
+    try {
+      // PDF loading may finish after generation started. Never validate against a stale
+      // client-supplied count or a pre-load record captured before metadata was saved.
+      if (artifact?.kind === 'knowledge-graph') record.totalPages = (await courseRecord(id)).totalPages;
+      // 新生成的文字属于原文；用户补充只能来自已保存节点或专用 PATCH 接口。
+      const incoming = artifact?.kind === 'mindmap' && Array.isArray(artifact.nodes)
+        ? { ...artifact, nodes: artifact.nodes.map(node => {
+          if (!object(node)) return node;
+          const { userText, originalLabel, ...generated } = node;
+          return generated;
+        }) } : artifact;
+      const result = normalizeArtifact(record, incoming);
+      delete result.source;
+      if (result.kind === 'knowledge-graph') {
+        // Only new generations require v2; legacy files stay readable as they are.
+        try { validateKnowledgeGraph(result, result.id, record.totalPages, { requireV2: true }); }
+        catch (error) { fail(400, `知识图谱未通过保存检查：${error.message}`); }
+        const latestOutline = await readJson(resolve(record.courseDir, 'textbook/outline.json'), []);
+        const scopedSource = source && { ...sourceForRequest(request, latestOutline), ...source };
+        const trustedSource = previous?.kind === 'knowledge-graph' ? previous.source
+          : request.skillId === 'chat' && request.artifact?.kind === 'knowledge-graph' ? graphInherited : scopedSource;
+        if (trustedSource) result.source = { ...trustedSource };
+      }
+      if (previous?.kind === 'mindmap') {
+        const retainedIds = new Set(result.kind === 'mindmap' ? result.nodes.map(node => node.id) : []);
+        if (previous.nodes.some(node => node.userText && !retainedIds.has(node.id))) {
+          fail(409, '这份导图仍有用户补充，已保留原资料。请生成新导图后再调整节点结构。');
+        }
+      }
+      if (result.kind === 'mindmap') {
+        const trustedSource = previous?.kind === 'mindmap' ? previous.source : inherited || source;
+        if (trustedSource) result.source = { ...trustedSource };
+        if (previous?.kind === 'mindmap') {
+          const originalNodes = new Map(previous.nodes.map(node => [node.id, node]));
+          result.nodes = result.nodes.map(node => {
+            const original = originalNodes.get(node.id);
+            return original ? {
+              ...node, label: original.label, userText: original.userText,
+              ...(original.originalLabel === undefined ? {} : { originalLabel: original.originalLabel }),
+            } : node;
+          });
+        }
+      }
+      const saved = await writeArtifact(record, result);
+      existing.set(saved.id, structuredClone(saved));
+      updateGenerationSnapshots(id, saved);
+      return saved;
+    } catch (error) {
+      // Agent 可能已覆盖同名文件；失败时恢复完整旧图，不能只拒绝流式事件。
+      if (previous && (previous.kind === 'mindmap' || previous.kind === 'knowledge-graph' || artifact?.kind === 'knowledge-graph')) {
+        await writeArtifact(record, previous);
+      } else if (artifact?.kind === 'knowledge-graph' && typeof artifact.id === 'string') {
+        // Also handle an Agent that ignored the pending-file contract. Keep its output for
+        // diagnosis, but do not let a rejected result reappear after a page reload.
+        try {
+          const name = recordName(artifact.id);
+          const path = await safePath(record.courseDir, 'outputs', `result-${name}.json`);
+          const rejected = await safePath(record.courseDir, 'outputs', `rejected-${name}-${randomUUID()}.json`);
+          await rename(path, rejected);
+        } catch (cleanupError) {
+          if (cleanupError.code !== 'ENOENT' && cleanupError.status !== 400) throw cleanupError;
+        }
+      }
+      throw error;
+    }
+  });
+  save.knowledgeGraphContext = { conceptCatalogPath };
+  save.finalize = () => serial(id, async () => {
+    // Runs even if the Agent returned no artifact, malformed JSON, or was interrupted.
+    // Only writes that passed our saver (including concurrent user note saves) enter
+    // the authoritative snapshot. Keep unapproved output for diagnosis outside result-*.
+    const outputs = await safePath(record.courseDir, 'outputs');
+    const approved = existing.files;
+    for (const file of await readdir(outputs, { withFileTypes: true })) {
+      if (!file.isFile() || !/^result-.+\.json$/.test(file.name) || approved.has(file.name)) continue;
+      const rejected = await safePath(outputs, `rejected-${randomUUID()}-${file.name}`);
+      await rename(await safePath(outputs, file.name), rejected);
+    }
+    for (const [filename, contents] of approved) {
+      const path = await safePath(outputs, filename);
+      let onDisk;
+      try { onDisk = await readFile(path, 'utf8'); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      // Preserve original bytes, including old-format files that normalize on read.
+      if (onDisk !== contents) await writeFile(path, contents);
+    }
+  });
+  save.dispose = () => {
+    const snapshots = generationSnapshots.get(id);
+    snapshots?.delete(existing);
+    if (!snapshots?.size) generationSnapshots.delete(id);
+  };
+  return save;
+}
+
+export async function updateMindmapNode(id, artifactId, nodeId, value) {
+  if (!object(value) || typeof value.userText !== 'string'
+      || Object.keys(value).some(key => key !== 'userText')) fail(400, '只能编辑用户补充文字，不能修改生成原文。');
+  const userText = value.userText;
+  if (userText.length > 2000) fail(400, '补充文字不能超过 2000 个字符。');
+  if (typeof nodeId !== 'string' || !nodeId.trim()) fail(400, '节点名称无效。');
+  const filename = `result-${recordName(artifactId)}.json`;
+  const record = await courseRecord(id);
+  return serial(id, async () => {
+    const path = await safePath(record.courseDir, 'outputs', filename);
+    // 同 ID 生成进行中时，以生成前快照（含期间保存的补充）为准，避免读到 Agent 的临时覆盖。
+    const snapshot = [...(generationSnapshots.get(id) || [])].find(items => items.has(artifactId));
+    const saved = snapshot?.get(artifactId) ?? await readJson(path);
+    if (saved === undefined) fail(404, '没有找到这份生成资料。');
+    const artifact = normalizeArtifact(record, saved);
+    if (artifact.id !== artifactId) fail(400, '生成资料的 ID 与文件名不一致。');
+    if (artifact.kind !== 'mindmap') fail(400, '当前只支持编辑思维导图节点。');
+    const node = artifact.nodes.find(item => item.id === nodeId);
+    if (!node) fail(404, '没有找到这个思维导图节点。');
+    if (node.userText === userText) return artifact;
+    const updated = {
+      ...artifact,
+      nodes: artifact.nodes.map(item => item.id === nodeId
+        ? { ...item, userText }
+        : item),
+    };
+    const result = await writeArtifact(record, updated);
+    updateGenerationSnapshots(id, result);
+    return result;
+  });
+}
+
 async function artifactsFor(record) {
+  // Do not display an Agent's drafts or temporary overwrites during generation.
+  const active = [...(generationSnapshots.get(record.id) || [])][0];
+  if (active) return [...active.values()].map(artifact => structuredClone(artifact));
   const outputs = await safePath(record.courseDir, 'outputs');
   const files = await readdir(outputs, { withFileTypes: true });
   const artifacts = [];
@@ -374,10 +628,22 @@ function readingValues(value, initialPage) {
 
 function validMessages(messages) {
   if (!Array.isArray(messages) || !messages.every((message) => object(message)
-      && typeof message.id === 'string' && ['user', 'assistant'].includes(message.role) && typeof message.content === 'string')) {
+      && typeof message.id === 'string' && ['user', 'assistant'].includes(message.role) && typeof message.content === 'string'
+      && (message.artifacts === undefined || Array.isArray(message.artifacts)))) {
     fail(400, '对话记录格式不正确。');
   }
   return messages;
+}
+
+function latestMessageArtifacts(record, messages, artifacts) {
+  const latest = new Map(artifacts.map(artifact => [artifact.id, artifact]));
+  return validMessages(messages).map(message => {
+    if (message.artifacts === undefined) return message;
+    return { ...message, artifacts: message.artifacts.map(artifact => {
+      const original = normalizeArtifact(record, artifact);
+      return latest.get(original.id) || original;
+    }) };
+  });
 }
 
 async function conversationFor(record, conversationId) {
@@ -388,7 +654,8 @@ async function stateFor(record) {
   const saved = await readJson(resolve(record.courseDir, 'reading.json'), {});
   const reading = readingValues(saved, record.initialPage);
   const conversation = await conversationFor(record, reading.conversationId);
-  return { ...reading, messages: conversation?.messages || [], artifacts: await artifactsFor(record) };
+  const artifacts = await artifactsFor(record);
+  return { ...reading, messages: latestMessageArtifacts(record, conversation?.messages || [], artifacts), artifacts };
 }
 
 export async function getState(id) { return stateFor(await courseRecord(id)); }
@@ -433,9 +700,10 @@ export async function listConversations(id) {
 }
 
 export async function getConversation(id, conversationId) {
-  const saved = await conversationFor(await courseRecord(id), conversationId);
+  const record = await courseRecord(id);
+  const saved = await conversationFor(record, conversationId);
   if (!saved) fail(404, '没有找到这段对话。');
-  return { messages: saved.messages || [] };
+  return { messages: latestMessageArtifacts(record, saved.messages || [], await artifactsFor(record)) };
 }
 
 export async function updateTextbook(id, value) {

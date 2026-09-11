@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ChevronLeft, ChevronRight, ExternalLink, LoaderCircle, Maximize, Minus, Plus, RotateCw } from 'lucide-react';
-import { getDocument, GlobalWorkerOptions, TextLayer, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist';
+import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import type { Book, Chapter } from '../lib/types';
@@ -12,9 +13,11 @@ interface TextbookReaderProps {
   book: Book;
   page: number;
   onPageChange: (page: number) => void;
+  navigationId: number;
+  onVisiblePageChange: (bookId: string, page: number) => void;
   onDocumentReady: (data: { totalPages: number; chapters: Chapter[] }) => void;
-  onTextChange: (text: string) => void;
-  onSelectionChange: (text: string) => void;
+  onTextChange: (bookId: string, page: number, text: string) => void;
+  onSelectionChange: (text: string, pages?: { start: number; end: number }) => void;
 }
 
 async function readOutline(pdf: PDFDocumentProxy): Promise<Chapter[]> {
@@ -53,13 +56,14 @@ function pdfErrorMessage(error: unknown) {
   return '教材暂时无法显示，请重试，或在新窗口打开原 PDF。';
 }
 
-export default function TextbookReader({ book, page, onPageChange, onDocumentReady, onTextChange, onSelectionChange }: TextbookReaderProps) {
+export default function TextbookReader({ book, page, navigationId, onPageChange, onVisiblePageChange, onDocumentReady, onTextChange, onSelectionChange }: TextbookReaderProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const paperRef = useRef<HTMLDivElement>(null);
-  const callbacks = useRef({ onDocumentReady, onTextChange, onSelectionChange });
-  callbacks.current = { onDocumentReady, onTextChange, onSelectionChange };
+  const pagesRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<PDFViewer | null>(null);
+  const callbacks = useRef({ onDocumentReady, onTextChange, onSelectionChange, onVisiblePageChange });
+  callbacks.current = { onDocumentReady, onTextChange, onSelectionChange, onVisiblePageChange };
   const [documentState, setDocumentState] = useState<{ url: string; pdf: PDFDocumentProxy } | null>(null);
-  const [viewportWidth, setViewportWidth] = useState(0);
+  const [viewerReady, setViewerReady] = useState(false);
   const [zoom, setZoom] = useState<number | null>(null);
   const [displayScale, setDisplayScale] = useState(1);
   const [pageInput, setPageInput] = useState(String(page));
@@ -67,142 +71,172 @@ export default function TextbookReader({ book, page, onPageChange, onDocumentRea
   const [loadPercent, setLoadPercent] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [textNote, setTextNote] = useState('');
+  const [pageErrors, setPageErrors] = useState<Record<number, string>>({});
   const [retry, setRetry] = useState(0);
   const pdf = documentState?.url === book.url ? documentState.pdf : null;
   const totalPages = pdf?.numPages ?? book.totalPages;
   const currentPage = Math.max(1, Math.min(page, totalPages ?? page));
+  const latest = useRef({ currentPage, zoom });
+  latest.current = { currentPage, zoom };
+  const lastNavigation = useRef(navigationId);
 
   useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const measure = () => setViewportWidth(viewport.clientWidth);
-    measure();
-    let timer: ReturnType<typeof setTimeout>;
-    const observer = new ResizeObserver(() => {
-      clearTimeout(timer);
-      timer = setTimeout(measure, 120);
-    });
-    observer.observe(viewport);
-    return () => { observer.disconnect(); clearTimeout(timer); };
-  }, []);
-
-  useEffect(() => {
+    const container = viewportRef.current;
+    const pages = pagesRef.current;
+    if (!container || !pages) return;
     let cancelled = false;
+    let initialized = false;
+    let needsInitialPosition = true;
+    const lifecycle = new AbortController();
+    const eventBus = new EventBus();
+    const linkService = new PDFLinkService({ eventBus, externalLinkTarget: 2, externalLinkRel: 'noopener noreferrer', ignoreDestinationZoom: true });
+    const options = {
+      container, viewer: pages, eventBus, linkService,
+      // PDF.js queues visible/nearby pages and evicts old canvases for long books.
+      maxCanvasPixels: 8 * 1024 * 1024,
+      abortSignal: lifecycle.signal,
+    };
+    const viewer = new PDFViewer(options);
+    viewerRef.current = viewer;
+    linkService.setViewer(viewer);
     setDocumentState(null);
+    setViewerReady(false);
     setError('');
+    setPageErrors({});
     setBusy(true);
     setLoadPercent(null);
     setZoom(null);
+    callbacks.current.onSelectionChange('');
+
+    const positionInitialPage = () => {
+      if (!container.clientWidth || !container.clientHeight) return;
+      viewer.currentScaleValue = 'page-width';
+      viewer.currentPageNumber = Math.min(latest.current.currentPage, viewer.pagesCount);
+      needsInitialPosition = false;
+      viewer.update();
+    };
+    eventBus.on('pagesinit', () => {
+      if (cancelled) return;
+      positionInitialPage();
+      initialized = true;
+      setViewerReady(true);
+      setBusy(false);
+    });
+    eventBus.on('pagechanging', ({ pageNumber }: { pageNumber: number }) => {
+      // Hidden tabs have no meaningful visible page. Scrolling only reports the
+      // active page; the parent must not turn this notification into a jump.
+      if (!cancelled && initialized && !needsInitialPosition && container.clientHeight > 0) {
+        callbacks.current.onVisiblePageChange(book.id, pageNumber);
+      }
+    });
+    eventBus.on('scalechanging', ({ scale }: { scale: number }) => {
+      if (!cancelled) setDisplayScale(scale);
+    });
+    eventBus.on('pagerendered', ({ pageNumber, error: renderError }: { pageNumber: number; error?: unknown }) => {
+      if (cancelled) return;
+      setPageErrors(previous => {
+        if (!renderError && !previous[pageNumber]) return previous;
+        const next = { ...previous };
+        if (renderError) next[pageNumber] = '这一页暂时无法显示，可继续滚动阅读其他页面，或刷新后重试。';
+        else delete next[pageNumber];
+        return next;
+      });
+    });
+
+    // Refitting uses PDF.js's saved position, preserving the place within a page
+    // when the reader column is resized or a hidden reader becomes visible.
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (cancelled || !initialized || !container.clientWidth || !container.clientHeight) return;
+        if (needsInitialPosition) { positionInitialPage(); return; }
+        if (latest.current.zoom === null) viewer.currentScaleValue = 'page-width';
+        else viewer.currentScale = latest.current.zoom;
+        viewer.update();
+      }, 120);
+    });
+    observer.observe(container);
+
     const loadingTask = getDocument({
       url: book.url,
-      cMapUrl: '/api/pdf-assets/cmaps/',
-      cMapPacked: true,
+      cMapUrl: '/api/pdf-assets/cmaps/', cMapPacked: true,
       standardFontDataUrl: '/api/pdf-assets/standard_fonts/',
       wasmUrl: '/api/pdf-assets/wasm/',
     });
-    loadingTask.onProgress = ({ loaded, total }: { loaded: number; total: number }) => {
-      if (!cancelled && total > 0) setLoadPercent(Math.min(100, Math.round(loaded / total * 100)));
-    };
-    void loadingTask.promise.then(async (loadedPdf) => {
-      if (cancelled) return;
-      setDocumentState({ url: book.url, pdf: loadedPdf });
-      const chapters = book.chapters.length ? book.chapters : await readOutline(loadedPdf).catch(() => []);
-      if (!cancelled) callbacks.current.onDocumentReady({ totalPages: loadedPdf.numPages, chapters });
-    }).catch((reason: unknown) => {
+    const showError = (reason: unknown) => {
       if (cancelled) return;
       setError(pdfErrorMessage(reason));
       setBusy(false);
-    });
+    };
+    loadingTask.onProgress = ({ loaded, total }: { loaded: number; total: number }) => {
+      if (!cancelled && total > 0) setLoadPercent(Math.min(100, Math.round(loaded / total * 100)));
+    };
+    void loadingTask.promise.then(async loadedPdf => {
+      if (cancelled) return;
+      setDocumentState({ url: book.url, pdf: loadedPdf });
+      linkService.setDocument(loadedPdf);
+      viewer.setDocument(loadedPdf);
+      void viewer.pagesPromise.catch(showError);
+      const chapters = book.chapters.length ? book.chapters : await readOutline(loadedPdf).catch(() => []);
+      if (!cancelled) callbacks.current.onDocumentReady({ totalPages: loadedPdf.numPages, chapters });
+    }).catch(showError);
     return () => {
       cancelled = true;
+      observer.disconnect();
+      clearTimeout(resizeTimer);
+      lifecycle.abort();
+      // The implementation accepts null to cancel/reset; its declaration omits it.
+      // @ts-expect-error PDF.js supports clearing the document with null.
+      viewer.setDocument(null);
+      linkService.setDocument(null);
+      if (viewerRef.current === viewer) viewerRef.current = null;
       void loadingTask.destroy().catch(() => {});
     };
   }, [book.id, book.url, retry]);
 
   useEffect(() => {
     setPageInput(String(currentPage));
-    callbacks.current.onTextChange('');
-    callbacks.current.onSelectionChange('');
-    viewportRef.current?.scrollTo({ top: 0, left: 0 });
-  }, [book.id, book.url, currentPage]);
+  }, [currentPage]);
 
   useEffect(() => {
-    const paper = paperRef.current;
-    if (!pdf || !paper || viewportWidth <= 0) return;
-    let cancelled = false;
-    let renderingTask: RenderTask | undefined;
-    let textLayer: TextLayer | undefined;
-    setBusy(true);
-    setError('');
-    setTextNote('');
-    // Each render owns its canvas so a fast page turn never reuses an active one.
-    const canvas = document.createElement('canvas');
-    canvas.setAttribute('aria-label', `${book.title}，第 ${currentPage} 页`);
-    canvas.setAttribute('role', 'img');
-    const textContainer = document.createElement('div');
-    textContainer.className = 'textLayer';
-    paper.replaceChildren(canvas, textContainer);
-    void (async () => {
-      try {
-        const pdfPage = await pdf.getPage(currentPage);
-        if (cancelled) return;
-        const natural = pdfPage.getViewport({ scale: 1 });
-        const fitScale = Math.max(180, viewportWidth - 48) / natural.width;
-        const scale = zoom ?? fitScale;
-        const viewport = pdfPage.getViewport({ scale });
-        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-        setDisplayScale(scale);
-        paper.style.width = `${viewport.width}px`;
-        paper.style.height = `${viewport.height}px`;
-        paper.style.setProperty('--total-scale-factor', String(scale * pdfPage.userUnit));
-        paper.style.setProperty('--scale-factor', String(scale));
-        canvas.width = Math.floor(viewport.width * pixelRatio);
-        canvas.height = Math.floor(viewport.height * pixelRatio);
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        renderingTask = pdfPage.render({
-          canvas,
-          viewport,
-          transform: pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0],
-        });
-        const textPromise = pdfPage.getTextContent().then(
-          (content) => ({ content, error: null }),
-          (textError: unknown) => ({ content: null, error: textError }),
-        );
-        await renderingTask.promise;
-        if (cancelled) return;
-        setBusy(false);
-        try {
-          const result = await textPromise;
-          if (cancelled) return;
-          if (!result.content) throw result.error;
-          const content = result.content;
-          const text = content.items.map((item) => 'str' in item ? item.str + (item.hasEOL ? '\n' : '') : '').join('');
-          callbacks.current.onTextChange(text.trim());
-          if (!text.trim()) setTextNote('这一页没有可选文字；扫描教材需要接入文字识别功能。');
-          textLayer = new TextLayer({ textContentSource: content, container: textContainer, viewport });
-          await textLayer.render();
-        } catch {
-          if (!cancelled) setTextNote('这一页的文字暂时无法提取，仍可阅读原文。');
-        }
-      } catch (reason) {
-        if (cancelled) return;
-        setError(pdfErrorMessage(reason));
-        setBusy(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      renderingTask?.cancel();
-      textLayer?.cancel();
-      paper.replaceChildren();
-    };
-  }, [pdf, currentPage, viewportWidth, zoom, book.title]);
+    const viewer = viewerRef.current;
+    if (!viewerReady || !viewer) return;
+    const explicitJump = lastNavigation.current !== navigationId;
+    lastNavigation.current = navigationId;
+    // A scroll-originated page change is already in view. Only navigation should
+    // move the viewport, including a repeated jump to the current page's top.
+    if (explicitJump) {
+      viewer.scrollPageIntoView({ pageNumber: currentPage });
+    }
+  }, [currentPage, navigationId, viewerReady]);
 
-  function submitPage() {
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewerReady || !viewer || !viewer.container.clientWidth || !viewer.container.clientHeight) return;
+    if (zoom === null) viewer.currentScaleValue = 'page-width';
+    else viewer.currentScale = zoom;
+  }, [zoom, viewerReady]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTextNote('');
+    callbacks.current.onTextChange(book.id, currentPage, '');
+    if (pdf) void pdf.getPage(currentPage).then(pdfPage => pdfPage.getTextContent()).then(content => {
+      if (cancelled) return;
+      const text = content.items.map(item => 'str' in item ? item.str + (item.hasEOL ? '\n' : '') : '').join('').trim();
+      callbacks.current.onTextChange(book.id, currentPage, text);
+      if (!text) setTextNote('这一页没有可选文字；扫描教材需要接入文字识别功能。');
+    }).catch(() => {
+      if (!cancelled) setTextNote('这一页的文字暂时无法提取，仍可阅读原文。');
+    });
+    return () => { cancelled = true; };
+  }, [pdf, book.id, currentPage]);
+
+  function submitPage(force = false) {
     const number = Number(pageInput);
     if (Number.isInteger(number) && number >= 1 && (!totalPages || number <= totalPages)) {
-      onPageChange(number);
+      if (force || number !== currentPage) onPageChange(number);
     } else {
       setPageInput(String(currentPage));
     }
@@ -210,10 +244,17 @@ export default function TextbookReader({ book, page, onPageChange, onDocumentRea
 
   function captureSelection() {
     const selection = window.getSelection();
-    const paper = paperRef.current;
+    const paper = pagesRef.current;
     if (!selection || !paper) return;
     if (paper.contains(selection.anchorNode) && paper.contains(selection.focusNode)) {
-      callbacks.current.onSelectionChange(selection.toString().trim());
+      const range = selection.rangeCount ? selection.getRangeAt(0) : null;
+      const sourcePage = (node: Node) => {
+        const element = node instanceof Element ? node : node.parentElement;
+        return Number(element?.closest('[data-page-number]')?.getAttribute('data-page-number'));
+      };
+      const start = range ? sourcePage(range.startContainer) : 0;
+      const end = range ? sourcePage(range.endContainer) : 0;
+      callbacks.current.onSelectionChange(selection.toString().trim(), start && end ? { start, end } : undefined);
     }
   }
 
@@ -221,35 +262,35 @@ export default function TextbookReader({ book, page, onPageChange, onDocumentRea
     <section className="textbook-reader" aria-label="教材阅读器">
       <div className="reader-toolbar" aria-label="教材阅读工具">
         <div className="reader-page-controls">
-          <button type="button" className="reader-icon-button" aria-label="上一页" title="上一页" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1 || !pdf}>
+          <button type="button" className="reader-icon-button" aria-label="上一页" title="上一页" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1 || !viewerReady}>
             <ChevronLeft size={17} />
           </button>
           <label className="reader-page-field">
             <span className="reader-page-label">页码</span>
-            <input aria-label="跳转到页码" inputMode="numeric" value={pageInput} onChange={(event) => setPageInput(event.target.value)} onBlur={submitPage} onKeyDown={(event) => { if (event.key === 'Enter') { submitPage(); event.currentTarget.blur(); } }} disabled={!pdf} />
+            <input aria-label="跳转到页码" inputMode="numeric" value={pageInput} onChange={(event) => setPageInput(event.target.value)} onBlur={() => submitPage()} onKeyDown={(event) => { if (event.key === 'Enter') { submitPage(true); event.currentTarget.blur(); } }} disabled={!viewerReady} />
             <span className="reader-page-total">/ {totalPages ?? '—'}</span>
           </label>
-          <button type="button" className="reader-icon-button" aria-label="下一页" title="下一页" onClick={() => onPageChange(currentPage + 1)} disabled={!pdf || currentPage >= (totalPages ?? 1)}>
+          <button type="button" className="reader-icon-button" aria-label="下一页" title="下一页" onClick={() => onPageChange(currentPage + 1)} disabled={!viewerReady || currentPage >= (totalPages ?? 1)}>
             <ChevronRight size={17} />
           </button>
         </div>
         <div className="reader-zoom-controls">
-          <button type="button" className="reader-icon-button" aria-label="缩小教材" title="缩小" disabled={!pdf || displayScale <= 0.35} onClick={() => setZoom(Math.max(0.35, displayScale - 0.15))}><Minus size={16} /></button>
+          <button type="button" className="reader-icon-button" aria-label="缩小教材" title="缩小" disabled={!viewerReady || displayScale <= 0.35} onClick={() => setZoom(Math.max(0.35, displayScale - 0.15))}><Minus size={16} /></button>
           <span className="reader-zoom-value">{Math.round(displayScale * 100)}%</span>
-          <button type="button" className="reader-icon-button" aria-label="放大教材" title="放大" disabled={!pdf || displayScale >= 3} onClick={() => setZoom(Math.min(3, displayScale + 0.15))}><Plus size={16} /></button>
+          <button type="button" className="reader-icon-button" aria-label="放大教材" title="放大" disabled={!viewerReady || displayScale >= 3} onClick={() => setZoom(Math.min(3, displayScale + 0.15))}><Plus size={16} /></button>
           <span className="reader-toolbar-divider" />
-          <button type="button" className={`reader-fit-button${zoom === null ? ' is-active' : ''}`} title="适合宽度" aria-label="适合宽度" disabled={!pdf} onClick={() => setZoom(null)}><Maximize size={15} /><span>适合宽度</span></button>
+          <button type="button" className={`reader-fit-button${zoom === null ? ' is-active' : ''}`} title="适合宽度" aria-label="适合宽度" disabled={!viewerReady} onClick={() => setZoom(null)}><Maximize size={15} /><span>适合宽度</span></button>
           <a className="reader-icon-button reader-open-link" href={`${book.url}#page=${currentPage}`} target="_blank" rel="noreferrer" title="在新窗口打开原 PDF" aria-label="在新窗口打开原 PDF"><ExternalLink size={15} /></a>
         </div>
       </div>
-      <div className="reader-viewport" ref={viewportRef}>
-        <div className="reader-page-stage">
-          <div className="reader-paper" ref={paperRef} onPointerUp={captureSelection} onKeyUp={captureSelection} style={{ visibility: busy || error ? 'hidden' : 'visible' }} />
-          {busy && !error && <div className="reader-status" role="status"><LoaderCircle className="reader-spinner" size={25} /><strong>{pdf ? '正在打开这一页' : '正在载入教材'}</strong><span>{!pdf && loadPercent !== null ? `已载入 ${loadPercent}%` : '保留教材原有的公式与排版'}</span></div>}
-          {error && <div className="reader-status reader-error" role="alert"><AlertCircle size={27} /><strong>教材没有打开</strong><span>{error}</span><button type="button" onClick={() => setRetry((value) => value + 1)}><RotateCw size={15} />重新加载</button></div>}
+      <div className="reader-view-area">
+        <div className="reader-viewport" ref={viewportRef} tabIndex={0} aria-label="连续滚动教材" onPointerUp={captureSelection} onKeyUp={captureSelection}>
+          <div className="reader-pages pdfViewer" ref={pagesRef} />
         </div>
+        {busy && !error && <div className="reader-status" role="status"><LoaderCircle className="reader-spinner" size={25} /><strong>正在载入教材</strong><span>{loadPercent !== null ? `已载入 ${loadPercent}%` : '保留教材原有的公式与排版'}</span></div>}
+        {error && <div className="reader-status reader-error" role="alert"><AlertCircle size={27} /><strong>教材没有打开</strong><span>{error}</span><button type="button" onClick={() => setRetry(value => value + 1)}><RotateCw size={15} />重新加载</button></div>}
       </div>
-      <div className="reader-footer"><span>{textNote || '选中教材文字，即可交给 Copilot 继续讲解'}</span><span className="reader-footer-page">PDF 第 {currentPage} 页</span></div>
+      <div className="reader-footer"><span role={pageErrors[currentPage] ? 'alert' : undefined}>{pageErrors[currentPage] || textNote || '上下滚动连续阅读 · 选中文字可交给 Copilot 讲解'}</span><span className="reader-footer-page">PDF 第 {currentPage} 页</span></div>
     </section>
   );
 }
