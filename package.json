@@ -12,6 +12,9 @@
     "start": "node server/index.mjs"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "^0.76.0",
+    "@agentclientprotocol/codex-acp": "^1.11.0",
+    "@agentclientprotocol/sdk": "^1.4.0",
     "@dagrejs/dagre": "^1.1.5",
     "@xyflow/react": "^12.8.4",
     "json5": "^2.2.3",
