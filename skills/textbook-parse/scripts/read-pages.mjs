@@ -72,13 +72,14 @@ function imageCanvas(factory, image) {
 async function main() {
   const { values } = parseArgs({ options: {
     pdf: { type: 'string' }, out: { type: 'string' },
-    start: { type: 'string' }, end: { type: 'string' }, help: { type: 'boolean' },
+    start: { type: 'string' }, end: { type: 'string' }, images: { type: 'string', default: 'all' }, help: { type: 'boolean' },
   } });
   if (values.help) {
-    console.log('node read-pages.mjs --pdf 教材.pdf --start 22 --end 23 --out 课程/outputs/本次解析目录');
+    console.log('node read-pages.mjs --pdf 教材.pdf --start 22 --end 23 --out 课程/outputs/本次解析目录 --images none|pages|all（默认 all，兼容已有调用）');
     return;
   }
   if (!values.pdf || !values.out) throw new Error('请提供 --pdf 和 --out。');
+  if (!['none', 'pages', 'all'].includes(values.images)) throw new Error('--images 请选择 none、pages 或 all。');
   const first = Number(values.start || 1);
   const last = Number(values.end || first);
   if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || first < 1 || last < first) throw new Error('页码必须为正整数，结束页不得早于起始页。');
@@ -100,18 +101,21 @@ async function main() {
     for (let number = first; number <= last; number++) {
       const page = await pdf.getPage(number);
       const text = pageText((await page.getTextContent()).items);
-      const original = page.getViewport({ scale: 1 });
-      const viewport = page.getViewport({ scale: 1600 / Math.max(original.width, original.height) });
-      const target = pdf.canvasFactory.create(Math.ceil(viewport.width), Math.ceil(viewport.height));
-      const preview = 'page-' + number + '.png';
-      try {
-        await page.render({ canvasContext: target.context, viewport, background: 'white' }).promise;
-        await writeFile(resolve(out, preview), target.canvas.toBuffer('image/png'));
-      } finally { pdf.canvasFactory.destroy(target); }
+      let preview = null;
+      if (values.images !== 'none') {
+        const original = page.getViewport({ scale: 1 });
+        const viewport = page.getViewport({ scale: 1600 / Math.max(original.width, original.height) });
+        const target = pdf.canvasFactory.create(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        preview = 'page-' + number + '.png';
+        try {
+          await page.render({ canvasContext: target.context, viewport, background: 'white' }).promise;
+          await writeFile(resolve(out, preview), target.canvas.toBuffer('image/png'));
+        } finally { pdf.canvasFactory.destroy(target); }
+      }
       const images = [];
       const notes = [];
       const seen = new Set();
-      const operations = await page.getOperatorList();
+      const operations = values.images === 'all' ? await page.getOperatorList() : { fnArray: [], argsArray: [] };
       for (let i = 0; i < operations.fnArray.length; i++) {
         const operation = operations.fnArray[i];
         if (![OPS.paintImageXObject, OPS.paintImageXObjectRepeat, OPS.paintInlineImageXObject].includes(operation)) continue;
@@ -131,7 +135,7 @@ async function main() {
       console.error('已读取 PDF 第 ' + number + ' 页，独立图片 ' + images.length + ' 张。');
       page.cleanup();
     }
-    const source = { textbook: basename(values.pdf), totalPages: pdf.numPages, start: first, end: last, outline, pages };
+    const source = { textbook: basename(values.pdf), totalPages: pdf.numPages, start: first, end: last, imageMode: values.images, outline, pages };
     const sourcePath = resolve(out, 'source.json');
     await writeFile(sourcePath, JSON.stringify(source, null, 2), 'utf8');
     console.log(JSON.stringify({ source: sourcePath, pages: pages.map(({ page, preview, images, needsVisualReading }) => ({ page, preview, images, needsVisualReading })) }));

@@ -265,7 +265,8 @@ LaTeX 环境检查结果：${JSON.stringify(status.latex)}。编译使用检测�
     const instructions = `${teachingInstructions}
 本次课程任务的文件与工具约定：
 当前课程：${request.book.title}。原始教材：${context.textbookPath}。解析内容：${context.textbookDir}。
-可用的本机 Node.js：${process.execPath}。教材读取工具：${fileURLToPath(new URL('../skills/textbook-parse/scripts/read-pages.mjs', import.meta.url))}，接受 --pdf、--start、--end、--out 参数，返回正文、页码目录和原页 PNG；--out 使用当前课程 outputs 下的子目录。
+可用的本机 Node.js：${process.execPath}。教材读取工具：${fileURLToPath(new URL('../skills/textbook-parse/scripts/read-pages.mjs', import.meta.url))}，接受 --pdf、--start、--end、--out；纯文字读取用 --images none，需要原页校对用 --images pages，需要独立图片用 --images all；--out 使用当前课程 outputs 下的子目录。
+可复用的已解析教材按 PDF 页序保存在 ${resolve(context.outputsDir, 'textbook-content')} 的 page-N.json。目录或对应页不存在时读取原 PDF；选文文件不代表整页，遇到待核对或矛盾内容需回看原页。
 只在当前课程的 outputs 目录保存生成文件，不修改教材、阅读记录或对话文件，不执行与用户学习要求无关的系统操作。
 不调用子代理。需要用户补充信息时直接在回答中提问。不要要求用户在当前界面执行不存在的交互。
 用户选定的 Skill：${skill ? `${skill.title}，${skill.path}。请先读取并使用它。` : '自由提问，可根据需要读取已配置的 Skill。'}
