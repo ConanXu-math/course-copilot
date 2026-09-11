@@ -155,7 +155,7 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
 
     <details className="agent-details agent-advanced" key={provider} open={provider === 'custom' ? true : undefined}>
       <summary>高级设置<span>程序与兼容选项</span><ChevronDown size={15}/></summary>
-      {status && status.connectionModes.length > 1 && <label className="agent-field">连接方式
+      {status && (status.connectionModes?.length ?? 0) > 1 && <label className="agent-field">连接方式
         <select aria-label="Agent 连接方式" value={mode} disabled={locked} onChange={event => {
           const mode = event.target.value as AgentConnectionMode;
           void perform('切换连接方式', () => saveAgentConfig({mode}), '连接方式已切换，点击连接即可使用。');

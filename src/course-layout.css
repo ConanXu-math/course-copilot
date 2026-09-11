@@ -1,0 +1,8 @@
+/* Small compatibility rules for local features in the upstream three-column layout. */
+.reading-tab { flex-shrink: 0; }
+.reading-panel > .artifact-viewer { min-width: 0; overflow: hidden; }
+.reading-panel .graph-view { min-height: 0; }
+.copilot-panel { overflow: hidden; }
+.copilot-header { flex-shrink: 0; }
+.selection-context > svg, .selection-context > button { flex-shrink: 0; }
+.composer-options { flex-wrap: wrap; }

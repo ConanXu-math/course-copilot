@@ -1,5 +1,53 @@
 export type SkillId = 'chat' | 'textbook-parse' | 'explain' | 'quiz' | 'mindmap' | 'knowledge-graph' | 'slides' | 'video';
-export type Scope = 'page' | 'chapter' | 'selection' | 'book';
+export type Scope = 'page' | 'section' | 'chapter' | 'selection' | 'book';
+export type KnowledgeGraphDetail = 'overview' | 'detailed';
+
+export interface KnowledgeGraphEvidence {
+  page: number;
+  summary: string;
+  location?: string;
+}
+
+export interface KnowledgeGraphCoverageItem {
+  title: string;
+  pages: number[];
+  status: 'covered' | 'omitted' | 'unread';
+  note: string;
+}
+
+export interface KnowledgeGraphCoverage {
+  summary: string;
+  items: KnowledgeGraphCoverageItem[];
+}
+
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  page?: number;
+  originalLabel?: string;
+  userText?: string;
+  conceptKey?: string;
+  type?: string;
+  aliases?: string[];
+  description?: string;
+}
+
+export interface KnowledgeGraphEdge {
+  id?: string;
+  source: string;
+  target: string;
+  label?: string;
+  basis?: 'textbook' | 'inference';
+  conditions?: string;
+  evidence?: KnowledgeGraphEvidence[];
+}
+
+export interface ArtifactSource {
+  scope: Scope;
+  page: number;
+  chapterId?: string;
+  sectionId?: string;
+}
 
 export interface Chapter {
   id: string;
@@ -56,17 +104,19 @@ export interface SkillRequest {
   selectedText: string;
   pageText: string;
   prompt: string;
+  knowledgeGraphDetail?: KnowledgeGraphDetail;
   templateId?: string;
   artifact?: Artifact;
   history: { role: 'user' | 'assistant'; content: string }[];
 }
 
-export type Artifact =
+export type Artifact = (
   | { id: string; title: string; kind: 'markdown'; content: string }
-  | { id: string; title: string; kind: 'mindmap' | 'knowledge-graph'; nodes: { id: string; label: string; page?: number }[]; edges: { source: string; target: string; label?: string }[] }
+  | { id: string; title: string; kind: 'mindmap' | 'knowledge-graph'; nodes: KnowledgeGraphNode[]; edges: KnowledgeGraphEdge[]; schemaVersion?: 2; detailLevel?: KnowledgeGraphDetail; coverage?: KnowledgeGraphCoverage }
   | { id: string; title: string; kind: 'slides'; slides?: { title: string; content: string }[]; url?: string;
       chapters?: { title: string; url: string; filename?: string }[]; sourceUrl?: string; templateId?: string }
-  | { id: string; title: string; kind: 'video' | 'file'; url: string; filename?: string };
+  | { id: string; title: string; kind: 'video' | 'file'; url: string; filename?: string }
+) & { source?: ArtifactSource };
 
 export type SkillEvent =
   | { type: 'progress'; message: string }

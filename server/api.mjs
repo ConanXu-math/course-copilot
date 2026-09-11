@@ -6,7 +6,7 @@ import { extname, resolve, sep } from 'node:path';
 import { codingAgent, getAgentStatus, getSkillAvailability, connectAgent, disconnectAgent, configureAgent, startAgentLogin, cancelAgentLogin } from './agent.mjs';
 export { disposeAgent } from './agent.mjs';
 import { handleCourseApi } from './course-api.mjs';
-import { getCoursePaths, saveArtifact, outputUrl } from './course-store.mjs';
+import { createGeneratedArtifactSaver, getCoursePaths, outputUrl } from './course-store.mjs';
 import { slideTemplates } from './slide-templates.mjs';
 
 const pdfAssetsRoot = fileURLToPath(new URL('../node_modules/pdfjs-dist/', import.meta.url));
@@ -59,7 +59,8 @@ function checkRequest(request) {
     || typeof request.skillId !== 'string' || !request.book
     || !['id', 'title', 'filename'].every((key) => typeof request.book[key] === 'string')
     || !Number.isInteger(request.page) || request.page < 1
-    || !['page', 'chapter', 'selection', 'book'].includes(request.scope)
+    || !['page', 'section', 'chapter', 'selection', 'book'].includes(request.scope)
+    || (request.knowledgeGraphDetail !== undefined && !['overview', 'detailed'].includes(request.knowledgeGraphDetail))
     || !['selectedText', 'pageText', 'prompt'].every((key) => typeof request[key] === 'string')
     || !Array.isArray(request.history)
     || !request.history.every((item) => item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string')) {
@@ -79,23 +80,25 @@ async function writeEvent(res, event, signal) {
 
 async function runAgent(req, res, request, skills) {
   const paths = await getCoursePaths(request.book.id);
-  if (req.aborted || res.destroyed) return;
+  const saveGeneratedArtifact = await createGeneratedArtifactSaver(request.book.id, request);
   const controller = new AbortController();
   const stop = () => {
     if (!res.writableFinished) controller.abort();
   };
-  req.on('aborted', stop);
-  res.on('close', stop);
-  res.writeHead(200, {
-    'Content-Type': 'application/x-ndjson; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    'X-Accel-Buffering': 'no',
-  });
-  res.flushHeaders();
   let endType;
   try {
+    if (req.aborted || res.destroyed) return;
+    req.on('aborted', stop);
+    res.on('close', stop);
+    res.writeHead(200, {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders();
     for await (const rawEvent of codingAgent(request, {
       signal: controller.signal, ...paths, skills,
+      ...saveGeneratedArtifact.knowledgeGraphContext,
       outputUrl: (filename) => outputUrl(request.book.id, filename),
     })) {
       let event = rawEvent;
@@ -107,7 +110,7 @@ async function runAgent(req, res, request, skills) {
         break;
       }
       controller.signal.throwIfAborted();
-      if (event.type === 'artifact') event = { ...event, artifact: await saveArtifact(request.book.id, event.artifact) };
+      if (event.type === 'artifact') event = { ...event, artifact: await saveGeneratedArtifact(event.artifact) };
       await writeEvent(res, event, controller.signal);
       if (event.type === 'error') {
         endType = 'error';
@@ -125,6 +128,7 @@ async function runAgent(req, res, request, skills) {
       res.write(`${JSON.stringify({ type: 'error', message: `Coding Agent 执行失败：${reason}` })}\n`);
     }
   } finally {
+    saveGeneratedArtifact.dispose();
     req.off('aborted', stop);
     res.off('close', stop);
     if (!res.destroyed) res.end();

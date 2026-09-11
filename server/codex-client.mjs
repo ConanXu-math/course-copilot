@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { createInterface } from 'node:readline';
+import { startProcess, stopProcess } from './agent-process.mjs';
 
 // Codex App Server 的标准输入/输出连接。账号和凭据仍由 Codex 自己管理。
 export class CodexClient extends EventEmitter {
@@ -10,9 +10,8 @@ export class CodexClient extends EventEmitter {
     this.nextId = 1;
     this.closed = false;
     this.stderr = '';
-    this.process = spawn(executable, ['app-server', '--listen', 'stdio://'], {
-      cwd, stdio: ['pipe', 'pipe', 'pipe'], shell: false,
-    });
+    this.process = startProcess(executable, ['app-server', '--listen', 'stdio://'], cwd);
+    this.processEnded = new Promise(resolve => this.process.once('close', resolve));
     this.lines = createInterface({ input: this.process.stdout });
     this.lines.on('line', (line) => {
       let message;
@@ -114,7 +113,7 @@ export class CodexClient extends EventEmitter {
     this.finish(new Error('已断开课程工作台与 Codex 的连接。'));
     this.lines.close();
     this.process.stdin.destroy();
-    this.process.kill('SIGTERM');
+    stopProcess(this.process);
   }
 
   async *run(params, input, signal) {
@@ -123,7 +122,11 @@ export class CodexClient extends EventEmitter {
     let turnId;
     let wake;
     let complete = false;
-    let interrupted = false;
+    let turnRequested = false;
+    let turnCompleted = false;
+    let stopPromise;
+    let finishTurn;
+    const turnEnded = new Promise(resolve => { finishTurn = resolve; });
     let messageId;
     const queue = [];
     const push = event => { queue.push(event); wake?.(); };
@@ -145,6 +148,8 @@ export class CodexClient extends EventEmitter {
         if (descriptions[event.item?.type]) push({ type: 'progress', message: descriptions[event.item.type] });
       } else if (method === 'turn/completed') {
         complete = true;
+        turnCompleted = true;
+        finishTurn();
         push(event.turn.status === 'completed' ? { type: 'done' } : {
           type: 'error', message: event.turn.error?.message || (event.turn.status === 'interrupted' ? 'Codex 已停止。' : 'Codex 未完成这次请求。'),
         });
@@ -155,18 +160,37 @@ export class CodexClient extends EventEmitter {
     const onClose = error => { complete = true; push({ type: 'error', message: error.message }); };
     const stop = () => {
       wake?.();
-      if (!turnId || interrupted || complete) return;
-      interrupted = true;
-      void this.request('turn/interrupt', { threadId: thread.id, turnId }).catch(() => {
-        // 如果已无法确认停止，就结束本界面持有的进程，避免任务留在后台继续执行。
+      if (!turnRequested || turnCompleted) return stopPromise;
+      if (stopPromise) return stopPromise;
+      stopPromise = (async () => {
+        if (turnId && !this.closed) {
+          // The RPC acknowledgment only accepts interruption. Keep listening for
+          // the actual terminal notification before course files can be restored.
+          void this.request('turn/interrupt', { threadId: thread.id, turnId }, 5000).catch(() => {
+            if (!turnCompleted) this.close();
+          });
+          let timer;
+          const stopped = await Promise.race([
+            turnEnded.then(() => true),
+            this.processEnded.then(() => true),
+            new Promise(resolve => { timer = setTimeout(() => resolve(false), 5000); }),
+          ]);
+          clearTimeout(timer);
+          if (stopped) return;
+        }
+        // No terminal event (or no turn ID yet): stop our owned process group,
+        // including file commands, and wait for the real OS process close.
         this.close();
-      });
+        await this.processEnded;
+      })();
+      return stopPromise;
     };
     this.on('notification', onNotification);
     this.on('closed', onClose);
     signal.addEventListener('abort', stop, { once: true });
     try {
       signal.throwIfAborted();
+      turnRequested = true;
       const result = await this.request('turn/start', { threadId: thread.id, input });
       turnId = result.turn.id;
       if (signal.aborted) stop();
@@ -178,7 +202,7 @@ export class CodexClient extends EventEmitter {
         while (queue.length) yield queue.shift();
       }
     } finally {
-      if (!complete) stop();
+      if (!turnCompleted) await stop();
       this.off('notification', onNotification);
       this.off('closed', onClose);
       signal.removeEventListener('abort', stop);

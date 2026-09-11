@@ -70,6 +70,10 @@ export async function savePageText(courseId: string, page: number, text: string)
   await request(`${coursePath(courseId)}/pages/${page}`, { method: 'PUT', ...jsonBody({ text }) });
 }
 
+export function editMindmapNode(courseId: string, artifactId: string, nodeId: string, userText: string): Promise<Artifact> {
+  return getJson(`${coursePath(courseId)}/artifacts/${encodeURIComponent(artifactId)}/nodes/${encodeURIComponent(nodeId)}`, { method: 'PATCH', ...jsonBody({ userText }) });
+}
+
 export function listConversations(courseId: string): Promise<ConversationInfo[]> {
   return getJson(`${coursePath(courseId)}/conversations`);
 }
@@ -96,7 +100,7 @@ function isArtifact(value: unknown): value is Artifact {
   if (value.kind === 'video' || value.kind === 'file') return textField(value, 'url') && (value.filename === undefined || textField(value, 'filename'));
   if (value.kind === 'slides') return (value.url === undefined || textField(value, 'url')) && Array.isArray(value.slides) && value.slides.every(slide => isObject(slide) && textField(slide, 'title') && textField(slide, 'content'));
   if (value.kind === 'mindmap' || value.kind === 'knowledge-graph') {
-    return Array.isArray(value.nodes) && value.nodes.every(node => isObject(node) && textField(node, 'id') && textField(node, 'label') && (node.page === undefined || positivePage(node.page)))
+    return Array.isArray(value.nodes) && value.nodes.every(node => isObject(node) && textField(node, 'id') && textField(node, 'label') && (node.page === undefined || positivePage(node.page)) && (node.originalLabel === undefined || textField(node, 'originalLabel')) && (node.userText === undefined || textField(node, 'userText')))
       && Array.isArray(value.edges) && value.edges.every(edge => isObject(edge) && textField(edge, 'source') && textField(edge, 'target') && (edge.label === undefined || textField(edge, 'label')));
   }
   return false;
