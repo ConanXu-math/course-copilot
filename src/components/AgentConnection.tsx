@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ExternalLink, LoaderCircle, Plug, RefreshCw, Unplug } from 'lucide-react';
-import { cancelAgentLogin, connectAgent, disconnectAgent, getAgentStatus, saveAgentConfig, startAgentLogin, type AgentProvider, type AgentStatus, type ImageGenerationSettings } from '../lib/skill-client';
+import { cancelAgentLogin, connectAgent, disconnectAgent, getAgentStatus, saveAgentConfig, startAgentLogin, type AgentProvider, type AgentStatus, type AgentConnectionMode } from '../lib/skill-client';
 
 interface Props {
   status: AgentStatus | null;
@@ -17,8 +17,11 @@ const groups = [
 
 export default function AgentConnection({ status, active, busy, onChange }: Props) {
   const [executable, setExecutable] = useState('');
+  const [argumentsText, setArgumentsText] = useState('');
+  const [modelFlag, setModelFlag] = useState('--model');
+  const [modelDraft, setModelDraft] = useState('');
+  const [authMethod, setAuthMethod] = useState('');
   const [paths, setPaths] = useState<Record<string, string>>({});
-  const [imageSettings, setImageSettings] = useState<ImageGenerationSettings>({ enabled: false, provider: '', model: 'gpt-image-2' });
   const [working, setWorking] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -26,6 +29,11 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
   const locked = !!working || busy || !!status?.busy;
   const agentName = status?.name || 'Agent';
   const provider = status?.config.provider;
+  const mode = status?.config.mode || 'acp';
+  const extended = mode !== 'native';
+  const commandAgent = mode === 'cli';
+  const savedArguments = status?.config.args?.join('\n') || '';
+  const presetCommand = status?.defaultCommand || '';
 
   useEffect(() => {
     if (!status || initialized.current) return;
@@ -35,11 +43,11 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
 
   useEffect(() => {
     setExecutable(status?.config.executable || '');
-  }, [provider, status?.config.executable]);
+  }, [provider, mode, status?.config.executable]);
 
-  useEffect(() => {
-    if (status?.config.imageGeneration) setImageSettings(status.config.imageGeneration);
-  }, [status?.config.imageGeneration?.enabled, status?.config.imageGeneration?.provider, status?.config.imageGeneration?.model]);
+  useEffect(() => { setArgumentsText(savedArguments); setModelFlag(status?.config.modelFlag ?? '--model'); }, [provider, mode, savedArguments, status?.config.modelFlag]);
+  useEffect(() => { setModelDraft(status?.config.model || ''); }, [provider, mode, status?.config.model]);
+  useEffect(() => { setAuthMethod(status?.authMethods?.[0]?.id || ''); }, [provider, mode, status?.authMethods?.[0]?.id]);
 
   useEffect(() => {
     if (!active) return;
@@ -76,12 +84,12 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
   const connected = !!status?.connected;
   const installed = !!status?.installed;
   const configured = status?.skills.filter(skill => skill.configured).length || 0;
-  const phaseLabel = working === '连接' ? '正在连接' : status?.phase === 'error' ? '连接异常' : connected ? '已连接' : installed ? '等待登录' : '待连接';
+  const phaseLabel = working === '连接' ? '正在连接' : status?.phase === 'error' ? '连接异常' : connected ? commandAgent ? '已配置' : '已连接' : installed ? '等待登录' : '待连接';
   const step = connected ? 3 : installed ? 2 : 1;
 
   return <div className="agent-setup">
     <ol className="connection-steps" aria-label="Agent 连接步骤">
-      {['连接程序', '确认登录', '开始使用'].map((label, index) => <li key={label} className={step >= index + 1 ? 'current' : ''}>
+      {['选择 Agent', '连接与登录', '开始使用'].map((label, index) => <li key={label} className={step >= index + 1 ? 'current' : ''}>
         <span>{step > index + 1 || connected ? <Check size={12}/> : index + 1}</span>{label}
       </li>)}
     </ol>
@@ -94,7 +102,7 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
         {!status && <option value="">正在读取…</option>}
         {status?.providers.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
       </select>
-      <small>使用部署这台电脑上的程序和账号；模型与程序位置分别保存。</small>
+      <small>使用本机已有账号，选择 Agent 后连接即可。</small>
     </label>
 
     <section className={`agent-card ${connected ? 'is-connected' : ''}`} aria-label={`${agentName} 连接`}>
@@ -108,20 +116,24 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
       {installed && <div className="agent-account"><Check size={14}/><span>{status?.accountLabel || '程序已连接，账号尚未登录'}</span></div>}
 
       <label className="agent-field">使用模型
-        <select aria-label="使用模型" value={status?.config.model || ''} disabled={locked || !connected} onChange={event => { const model = event.target.value; void perform('保存模型', () => saveAgentConfig({ model }), '模型已保存，下次提问时生效。'); }}>
+        {status?.modelInput === 'manual' ? <span className="agent-model-input"><input aria-label="使用模型" value={modelDraft} disabled={locked || !connected} onChange={event => setModelDraft(event.target.value)} placeholder="留空跟随 Agent 设置" spellCheck={false}/><button type="button" className="text-button" disabled={locked || !connected || modelDraft === status.config.model} onClick={() => void perform('保存模型', () => saveAgentConfig({model:modelDraft.trim()}), '模型已保存，下次提问时生效。')}>保存</button></span> : <select aria-label="使用模型" value={status?.config.model || ''} disabled={locked || !connected} onChange={event => { const model = event.target.value; void perform('保存模型', () => saveAgentConfig({ model }), '模型已保存，下次提问时生效。'); }}>
           <option value="">跟随 {agentName} 设置</option>
           {status?.config.model && !status.models.some(model => model.id === status.config.model) && <option value={status.config.model} disabled>{status.config.model}{connected ? ' · 当前不可用，请重新选择' : ' · 已保存'}</option>}
           {status?.models.map(model => <option key={model.id} value={model.id}>{model.name}{model.isDefault ? ' · 默认' : ''}</option>)}
-        </select>
+        </select>}
         <small>{connected ? status?.modelNote || `读取 ${agentName} 的模型配置。` : '连接后可以选择模型。'}</small>
       </label>
 
+      {installed && !connected && !status?.login && !!status?.authMethods?.length && <label className="agent-field">认证方式
+        <select aria-label="Agent 认证方式" value={authMethod} disabled={locked} onChange={event => setAuthMethod(event.target.value)}>{status.authMethods.map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select>
+        <small>由 Agent 处理认证，也可以先在本机终端登录后重新连接。</small>
+      </label>}
       <div className="agent-actions">
-        {!installed && <button className="primary-button" disabled={locked || !status} onClick={() => void perform('连接', () => connectAgent(executable))}>
+        {!installed && <button className="primary-button" disabled={locked || !status} onClick={() => void perform('连接', () => connectAgent({mode, executable, ...(extended ? {args: argumentsText.split('\n').filter(line => line.trim()), ...(commandAgent ? {modelFlag} : {})} : {})}))}>
           {working === '连接' ? <LoaderCircle size={16} className="spin"/> : <Plug size={16}/>}{working === '连接' ? '正在连接…' : `连接本机 ${agentName}`}
         </button>}
-        {installed && !connected && !status?.signedIn && !status?.login && <button className="primary-button" disabled={locked} onClick={() => void perform('登录', startAgentLogin)}>
-          {working === '登录' ? <LoaderCircle size={16} className="spin"/> : <ExternalLink size={16}/>}{provider === 'codex' ? '使用 ChatGPT 登录' : provider === 'claude' ? '登录 Claude Code' : '配置模型服务'}
+        {installed && !connected && !status?.signedIn && !status?.login && <button className="primary-button" disabled={locked} onClick={() => void perform('登录', () => startAgentLogin(authMethod || undefined))}>
+          {working === '登录' ? <LoaderCircle size={16} className="spin"/> : <ExternalLink size={16}/>}{mode === 'native' && provider === 'codex' ? '使用 ChatGPT 登录' : mode === 'native' && provider === 'claude' ? '登录 Claude Code' : status?.authMethods?.length ? '开始登录' : '查看登录方式'}
         </button>}
         {installed && <button className="secondary-button" disabled={locked} onClick={() => void perform('断开', disconnectAgent, `${agentName} 已断开，账号配置仍保留。`)}><Unplug size={15}/>断开连接</button>}
         <button className="agent-refresh" disabled={locked} onClick={() => void perform('刷新', () => getAgentStatus(), '连接状态已更新。')}>
@@ -130,7 +142,7 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
       </div>
       {status?.login && <div className="agent-login" role="status">
         <strong>{status.login.authUrl ? '在浏览器完成登录' : `完成 ${agentName} 配置`}</strong>
-        <p>{status.login.authUrl ? '打开登录页面，完成后这里会自动更新。' : '在部署电脑的终端运行下方命令，按 Agent 的提示完成登录，然后刷新状态。'}</p>
+        <p>{status.login.authUrl ? '打开登录页面，完成后这里会自动更新。' : status.login.command ? '在部署电脑的终端运行下方命令，按 Agent 的提示完成登录，然后刷新状态；若仍未更新，请断开后重新连接。' : '先按该 Agent 的说明，在部署电脑的终端中完成登录和模型配置，再重新连接。'}</p>
         {status.login.authUrl && <a className="primary-button" href={status.login.authUrl} target="_blank" rel="noreferrer">打开登录页面<ExternalLink size={14}/></a>}
         {!status.login.authUrl && status.login.command && <code className="agent-login-command">{status.login.command}</code>}
         <button className="agent-refresh" disabled={locked} onClick={() => void perform('取消登录', cancelAgentLogin)}>{status.login.manual ? '关闭提示' : '取消登录'}</button>
@@ -141,38 +153,29 @@ export default function AgentConnection({ status, active, busy, onChange }: Prop
     {notice && <p className="agent-feedback" role="status">{notice}</p>}
     {busy && <p className="agent-feedback">当前任务结束后，可以更改连接设置。</p>}
 
-    <details className="agent-details">
-      <summary>文生图<span>{status?.config.imageGeneration?.enabled ? '已配置' : '未启用'}</span><ChevronDown size={15}/></summary>
-      <p>需要配图时优先调用图片模型，生成结果保存在当前课程。聊天模型保持原设置。</p>
-      <label className="agent-field">绘图方式
-        <select aria-label="绘图方式" value={imageSettings.enabled ? 'image' : 'code'} disabled={locked} onChange={event => setImageSettings(previous => ({ ...previous, enabled: event.target.value === 'image' }))}>
-          <option value="code">程序绘图</option><option value="image">优先文生图</option>
-        </select>
+    <details className="agent-details agent-advanced" key={provider} open={provider === 'custom' ? true : undefined}>
+      <summary>高级设置<span>程序与兼容选项</span><ChevronDown size={15}/></summary>
+      {status && status.connectionModes.length > 1 && <label className="agent-field">连接方式
+        <select aria-label="Agent 连接方式" value={mode} disabled={locked} onChange={event => {
+          const mode = event.target.value as AgentConnectionMode;
+          void perform('切换连接方式', () => saveAgentConfig({mode}), '连接方式已切换，点击连接即可使用。');
+        }}>{status.connectionModes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        <small>默认使用 ACP。切换到兼容方式会保留各自的程序和模型设置。</small>
+      </label>}
+      <label className="agent-field">Agent 程序
+        <input aria-label="Agent 程序" value={executable} disabled={locked || installed} onChange={event => setExecutable(event.target.value)} placeholder={status?.bundledAdapter ? '留空使用项目自带的适配器' : presetCommand ? `留空自动查找 ${presetCommand}` : '命令名或程序完整路径'} autoComplete="off" spellCheck={false}/>
+        <small>{status?.bundledAdapter ? '适配器随项目安装，通常不需要指定程序位置。' : commandAgent ? '使用接收要求、输出纯文本并自行退出的非交互命令。' : mode === 'native' ? '使用该 Agent 的原生程序，通常无需修改。' : '通常使用默认程序；自定义程序需支持 ACP。'}</small>
       </label>
-      <label className="agent-field">图片服务
-        <select aria-label="图片服务" value={imageSettings.provider} disabled={locked} onChange={event => setImageSettings(previous => ({ ...previous, provider: event.target.value }))}>
-          <option value="">请选择服务</option>
-          {status?.imageProviders?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        <small>复用 OpenCode 中已有服务的 API 凭据；该账号须已开通生图权限。</small>
-      </label>
-      <label className="agent-field">图片模型
-        <input aria-label="图片模型" value={imageSettings.model} disabled={locked} onChange={event => setImageSettings(previous => ({ ...previous, model: event.target.value }))} placeholder="gpt-image-2" spellCheck={false}/>
-      </label>
-      {status?.imageError && <p className="agent-feedback error" role="alert">{status.imageError}</p>}
-      <button className="secondary-button" disabled={locked || !status} onClick={() => void perform('保存图片设置', () => saveAgentConfig({ imageGeneration: imageSettings }), '图片设置已保存；实际可用性以服务返回结果为准。')}>
-        <Check size={15}/>保存图片设置
-      </button>
-    </details>
-
-    <details className="agent-details">
-      <summary>程序位置<span>通常无需填写</span><ChevronDown size={15}/></summary>
-      <label className="agent-field">{agentName} 程序路径
-        <input value={executable} disabled={locked || installed} onChange={event => setExecutable(event.target.value)} placeholder={`留空，自动查找本机 ${agentName}`} autoComplete="off" spellCheck={false}/>
-      </label>
+      {extended && <label className="agent-field">启动参数 · 每行一个
+        <textarea aria-label="Agent 启动参数" value={argumentsText} disabled={locked || installed} onChange={event => setArgumentsText(event.target.value)} rows={3} spellCheck={false} placeholder={commandAgent ? '--print\n{prompt}' : '使用默认参数或留空'}/>
+        <small>参数原样传给程序，无须添加外层引号。{commandAgent ? ' {prompt} 传入要求，{promptFile} 传入要求文件路径；都不用时通过标准输入传入。' : ''}</small>
+      </label>}
+      {commandAgent && <label className="agent-field">模型参数
+        <input aria-label="Agent 模型参数" value={modelFlag} disabled={locked || installed} onChange={event => setModelFlag(event.target.value)} placeholder="--model" spellCheck={false}/>
+        <small>只有填写了“使用模型”才会传入；不支持时留空。</small>
+      </label>}
       {installed && <p>正在使用：<code>{status?.executable}</code></p>}
       {status?.note && <p>{status.note}</p>}
-      {!installed && <p>可填写完整路径。填写后点击上方“连接本机 {agentName}”。</p>}
     </details>
 
     <details className="agent-details">

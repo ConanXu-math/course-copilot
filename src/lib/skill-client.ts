@@ -1,7 +1,8 @@
 import type { SkillEvent, SkillInfo, SkillRequest } from './types';
 
-export type AgentProvider = 'codex' | 'claude' | 'opencode';
-export interface ImageGenerationSettings { enabled: boolean; provider: string; model: string }
+export type AgentProvider = string;
+export type AgentConnectionMode = 'acp' | 'native' | 'cli';
+export interface AgentLaunchSettings { mode?: AgentConnectionMode; executable?: string; args?: string[]; modelFlag?: string }
 
 export interface AgentStatus {
   connected: boolean;
@@ -15,9 +16,12 @@ export interface AgentStatus {
   note: string;
   busy: boolean;
   providers: { id: AgentProvider; name: string }[];
-  config: { provider: AgentProvider; executable: string; model: string; skillPaths: Record<string, string>; imageGeneration: ImageGenerationSettings };
-  imageProviders: { id: string; name: string }[];
-  imageError: string;
+  connectionModes: { id: AgentConnectionMode; name: string }[];
+  defaultCommand: string;
+  bundledAdapter: boolean;
+  modelInput: 'select' | 'manual';
+  authMethods: { id: string; name: string }[];
+  config: { provider: AgentProvider; mode: AgentConnectionMode; executable: string; args: string[]; modelFlag: string; model: string; skillPaths: Record<string, string> };
   latex?: { engine: string; version: string; missing: string[]; preferredMathFonts: boolean; ready: boolean; message: string };
   models: { id: string; name: string; isDefault: boolean }[];
   modelNote: string;
@@ -58,11 +62,11 @@ async function agentAction(action: string, value: unknown = {}): Promise<AgentSt
   return response.json() as Promise<AgentStatus>;
 }
 
-export const connectAgent = (executable: string) => agentAction('connect', { executable });
+export const connectAgent = (settings: AgentLaunchSettings) => agentAction('connect', settings);
 export const disconnectAgent = () => agentAction('disconnect');
-export const startAgentLogin = () => agentAction('login');
+export const startAgentLogin = (authMethod?: string) => agentAction('login', {authMethod});
 export const cancelAgentLogin = () => agentAction('login/cancel');
-export const saveAgentConfig = (value: { provider?: AgentProvider; model?: string; skillPaths?: Record<string, string>; imageGeneration?: ImageGenerationSettings }) => agentAction('config', value);
+export const saveAgentConfig = (value: AgentLaunchSettings & { provider?: AgentProvider; model?: string; skillPaths?: Record<string, string> }) => agentAction('config', value);
 
 export function skillsFromStatus(status: AgentStatus): SkillInfo[] {
   return [

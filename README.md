@@ -12,7 +12,7 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 
 本机 HTTP 服务负责传递请求、返回进度、读写文件和提供 PDF／生成文件。教学任务统一交给 `server/agent.mjs` 中的 Coding Agent。七个专项 Skill 与自由问答按钮表达操作意图，Agent 可以组合多个 Skill。
 
-**支持个人部署，在页面中选择 Codex、Claude Code 或 OpenCode，再选择模型和填写 Skill 路径。** 每个人使用自己电脑上的 Agent 安装和账号。教材解析、讲解内容、知识点出题和 LaTeX Beamer 课件提供随项目运行的 Skill。思维导图、知识图谱和讲解视频提供自定义 Skill 接入位置。各项任务通过所选 Agent 执行。
+**支持个人部署，选择 Agent 后连接即可，默认统一使用 ACP。** 提供 Codex、Claude Code、OpenCode、Cursor、Gemini CLI、Copilot CLI、Qwen Code、Kimi Code、Kiro CLI 和自定义 Agent。Codex 与 Claude 的 ACP 适配器随项目安装；原生接口及非交互命令行兼容选项放在高级设置中。每个人使用自己的 Agent 账号。教材解析、讲解内容、知识点出题和 LaTeX Beamer 课件提供随项目运行的 Skill；思维导图、知识图谱和讲解视频提供自定义 Skill 接入位置。各项任务通过所选 Agent 执行，路径已配置不代表任务已经执行成功。
 
 ## 运行
 
@@ -136,32 +136,33 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 
 ## 连接 Coding Agent
 
-1. 打开页面右上角「工作区设置」，在「Coding Agent」中选择 Codex、Claude Code 或 OpenCode，再点击「连接本机…」。也可以在「程序位置」填写该 Agent 的完整程序路径。
-2. 已有登录和模型服务配置会自动复用。Codex 可在页面发起 ChatGPT 登录；Claude Code 使用它原生的登录流程，有登录链接时可以从页面打开；OpenCode 显示原生 `auth login` 命令，在部署电脑的终端完成后刷新状态。
-3. 在独立的「使用模型」中选择模型，或保留「跟随…设置」。Codex 和 OpenCode 的列表来自本机 Agent；Claude Code 提供由其原生程序解析的模型名称。关闭设置页即可自由提问。
+1. 打开页面右上角「工作区设置」，在统一的 Coding Agent 列表中选择程序，再点击「连接本机…」。Codex、Claude Code 使用项目自带的 ACP 适配器，其他预设自动查找本机程序。具体方法见 [Agent 接入说明](docs/agent-integration.md)。
+2. 复用已有登录或按 Agent 提供的认证方式完成登录；也可先在本机终端登录，再重新连接。账号凭据仍由 Agent 自己管理。
+3. 在「使用模型」中选择 Agent 返回的模型，或保留「跟随…设置」。关闭设置页即可自由提问。
 4. 在「接入 Skill」配置所需技能的路径，即可启用对应功能按钮。
 
-需要文生图时，在「文生图」中选择「优先文生图」、已有的 OpenAI 兼容图片服务和图片模型（例如 `gpt-image-2`），保存后下一次提问生效。图片服务来自本机 OpenCode 配置，API Key 从该服务配置或 OpenCode 已保存的 API 登录读取，不进入浏览器和课程设置。聊天 Agent 和聊天模型不变。服务必须实际支持 `POST /images/generations` 并返回 PNG 的 `b64_json`；模型列表可见不代表账号具备生图权限。403 权限错误需要由服务管理员开通对应账号或分组，修改提示词无法解决。
+默认 ACP 连接从真实会话读取模型列表，没有提供模型选择接口时跟随原配置。需要兼容旧环境时，可在「高级设置」为 Codex、Claude Code、OpenCode 选择原生接口；自定义 Agent 也可改用非交互命令行。每种方式的程序参数与模型分别保存，升级前的原生程序设置会保留到兼容方式中。仅有封闭图形界面、没有开放接口的产品无法直接接入。
 
-Agent 在课程任务内调用本机 `/api/agent/image`，只提交绘图要求。后端使用独立的图片模型完成生成，将图片保存到当前课程的 `outputs` 并返回 Markdown 图片引用；前端沿用现有图片展示。没有运行中的课程任务时不能调用此入口，停止课程任务也会取消正在进行的图片请求。图片生成没有绕过个人环境隔离，也不依赖全局插件或 MCP。
+配图由所选 Agent 根据自身实际可调用的 API 和工具自主完成：有文生图能力时优先使用，否则程序绘图。生成的图片保存到当前课程 `outputs`，通过 Markdown 展示。工作台不单独配置图片服务，也不会依据模型名称假定存在生图能力。已有图片和 LaTeX 公式继续正常展示。
 
 切换 Agent 会断开前一个连接，各自的模型和程序路径分别保存在个人设置中，Skill 路径共用。正在执行任务时，先停止任务或等待完成再切换。
 
 「刷新状态」会重新读取连接和账号状态。「断开连接」只结束本工作台持有的连接和进程，保留原生 Agent 的账号配置。服务重启后，在设置中点击连接即可恢复使用；已保存的模型和路径仍保留。连接成功代表程序与本机配置可读，模型服务是否有额度、凭据是否有效仍以实际问答结果为准。
 
-`server/agent.mjs` 统一传递课程内容、历史问答与选定 Skill，处理回答和学习资料；各 Agent 只负责连接自己的原生程序：
+`server/agent.mjs` 统一传递课程内容、历史问答与选定 Skill，处理回答和学习资料；默认使用同一个 ACP 客户端：
 
-- `server/codex-client.mjs` 使用 [Codex App Server](https://developers.openai.com/codex/app-server/) 的本机标准输入输出接口。
-- `server/claude-client.mjs` 使用 [Claude Code 的非交互运行接口](https://code.claude.com/docs/en/headless)，读取原生流式消息。
-- `server/opencode-client.mjs` 启动 [OpenCode 本机服务](https://opencode.ai/docs/server/)，读取模型配置并通过原生 `run --attach` 执行课程请求。
+- `server/acp-client.mjs` 使用 [ACP](https://agentclientprotocol.com/get-started/agents) 标准接口，处理认证、模型、正文、进度与结束状态。Codex 和 Claude 分别使用随项目安装的 `@agentclientprotocol/codex-acp`、`@agentclientprotocol/claude-agent-acp`；OpenCode 等直接启动各自的 ACP 模式。
+- `server/agent-providers.mjs` 维护统一 Agent 列表、默认 ACP 命令、项目适配器入口和高级兼容选项。新增 ACP 预设无需修改前端或课程逻辑。
+- `server/codex-client.mjs`、`server/claude-client.mjs`、`server/opencode-client.mjs` 只用于显式选择的原生兼容方式，保留原来的登录与调用流程。
+- `server/command-client.mjs` 用于自定义 Agent 的命令行兼容方式，读取非交互 CLI 的纯文本输出。
 
 OpenCode 使用独立的课程配置目录 `<数据目录>/agent/opencode/config`，仅从个人 OpenCode 的 JSON/JSONC 配置接入模型服务、默认模型和模型服务启停设置；登录信息仍由 OpenCode 原生管理。不会继承个人配置中的插件、MCP、Skill 路径或教学指令，并关闭 `.claude`、`.agents` 的 Skill 自动扫描。课程固定使用 `course` Agent，关闭原生 Skill 自动选择和子代理调用，直接读取「接入 Skill」中提供的文件。未配置 Skill 时仍可正常自由问答、绘图和生成资料。
 
 连接时读取标准全局配置和 `OPENCODE_CONFIG` / `OPENCODE_CONFIG_CONTENT` 中的模型设置；配置中的相对文件引用保留原目录含义。修改个人模型配置后，在课程页面断开并重新连接即可生效。课程隔离设置只作用于本应用启动的进程，不修改其他用户的全局配置，也不是操作系统级文件沙箱。
 
-共享教学要求在 Codex 中作为开发者指令传入，在 Claude Code 中追加到系统提示，在 OpenCode 中放在本次任务正文之前。OpenCode 结束后还会读取本次原生会话的回答，补上流式消息漏掉的文字，并检查是否正常完成后再结束界面任务。
+ACP 模式将公共教学要求、教材上下文与本轮要求交给同一个课程任务流程。原生兼容方式继续使用各自的指令接口；OpenCode 原生兼容方式结束后还会补读本次会话消息，检查完成状态。
 
-课程对话保存在本应用的个人目录；Codex 使用临时会话，Claude Code 关闭本次会话的持久保存，OpenCode 在任务结束后删除本工作台刚创建的临时会话。原生 Agent 仍可能保存自己的运行日志。
+课程对话保存在本应用的个人目录。ACP 每次课程请求创建独立会话，支持关闭会话的 Agent 会收到关闭请求。原生兼容方式保留原来的临时会话处理。Agent 自身的会话和日志可能继续保存在各自目录中，本应用不会删除这些个人配置和历史。
 
 账号凭据与登录刷新由各 Agent 自己管理，沿用它们原有的保存位置。课程设置不保存 API Key 或登录令牌。本机运行的是 Agent 程序，模型仍使用该 Agent 配置的服务。复制本项目或课程目录不会替其他用户配置账号。
 
