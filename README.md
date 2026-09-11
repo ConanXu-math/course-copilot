@@ -14,6 +14,18 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 
 **支持个人部署，选择 Agent 后连接即可，默认统一使用 ACP。** 提供 Codex、Claude Code、OpenCode、Cursor、Gemini CLI、Copilot CLI、Qwen Code、Kimi Code、Kiro CLI 和自定义 Agent。Codex 与 Claude 的 ACP 适配器随项目安装；原生接口及非交互命令行兼容选项放在高级设置中。每个人使用自己的 Agent 账号。教材解析、讲解内容、知识点出题、思维导图、知识图谱和 LaTeX Beamer 课件随项目提供 Skill；讲解视频可在工作区设置中填写自定义 Skill 路径。各项任务通过所选 Agent 执行，路径已配置不代表任务已经执行成功。
 
+## 让 Coding Agent 安装
+
+将下面这段发给你使用的 Coding Agent：
+
+```text
+https://github.com/ConanXu-math/course-copilot
+安装这个仓库的 verymath-install Skill，并按照它完成 VeryMath 智慧教材的本机部署：
+检查并安装必要依赖，配置内置课程 Skill，连接我现有的 Agent，启动工作台并给我访问地址。
+```
+
+部署入口是 [skills/verymath-install/SKILL.md](skills/verymath-install/SKILL.md)。收到仓库链接和安装要求的 Agent，应读取并执行这个入口，完成工作台部署；课程 Skill 由工作台加载。需要账号登录时由使用者本人完成。
+
 ## 运行
 
 在要部署的电脑上准备 Node.js 22.13 或更新版本，并安装至少一种 Agent：
