@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, BookOpen, Check, ChevronDown, ClipboardList, CornerDownLeft, FileSliders, FileText, MessageCircle, Network, Plus, Quote, Sparkles, Square, Video, Waypoints, X, LoaderCircle, ArrowUpRight, AlertCircle, History } from 'lucide-react';
 import type { Artifact, Book, Chapter, Message, Scope, SkillId, SkillInfo } from '../lib/types';
 import Markdown from './Markdown';
+import './slide-template-picker.css';
 
 const tools = [
   { id: 'textbook-parse', title: '教材解析', subtitle: '提取正文公式与图片', icon: FileText, prompt: '请解析所选范围的教材，提取正文、LaTeX 公式、图片和目录，保留对应的 PDF 页码，并保存为学习资料。' },
@@ -16,7 +17,7 @@ const tools = [
 
 interface Props {
   book: Book; page: number; chapter?: Chapter; selectedText: string; onClearSelection: () => void;
-  skills: SkillInfo[]; messages: Message[]; busy: boolean; onSend: (id: SkillId, prompt: string, scope: Scope) => void;
+  skills: SkillInfo[]; messages: Message[]; busy: boolean; onSend: (id: SkillId, prompt: string, scope: Scope, templateId?: string) => void;
   onStop: () => void; onReset: () => void; onHistory: () => void; onArtifact: (artifact: Artifact) => void; onSettings: () => void;
 }
 
@@ -25,6 +26,7 @@ export default function CopilotPanel(props: Props) {
   const [activeSkill, setActiveSkill] = useState<SkillId>('chat');
   const [prompt, setPrompt] = useState('');
   const [scope, setScope] = useState<Scope>('page');
+  const [templateId, setTemplateId] = useState('');
   const [toolsOpen, setToolsOpen] = useState(true);
   const input = useRef<HTMLTextAreaElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -38,7 +40,7 @@ export default function CopilotPanel(props: Props) {
 
   function submit() {
     if (!prompt.trim() || busy || (scope === 'selection' && !selectedText)) return;
-    props.onSend(activeSkill, prompt.trim(), scope);
+    props.onSend(activeSkill, prompt.trim(), scope, activeSkill === 'slides' ? templateId || undefined : undefined);
     setPrompt('');
     setToolsOpen(false);
   }
@@ -81,6 +83,13 @@ export default function CopilotPanel(props: Props) {
     <div className="composer-area">
       {selectedText && <div className="selection-context"><Quote size={14}/><span>{selectedText}</span><button className="icon-button" onClick={props.onClearSelection} aria-label="清除选中内容"><X size={14}/></button></div>}
       <div className="composer">
+        {activeSkill === 'slides' && <label className="slide-template-picker">课件模板
+          <select aria-label="课件模板" value={templateId} disabled={busy} onChange={event => setTemplateId(event.target.value)}>
+            <option value="">沿用原模板 · 新建用白底深蓝</option>
+            {selectedInfo?.templates?.map(template => <option key={template.id} value={template.id}>{template.title}</option>)}
+          </select>
+          {templateId && <small>{selectedInfo?.templates?.find(template => template.id === templateId)?.description}</small>}
+        </label>}
         <div className="composer-options"><span className="active-skill"><Sparkles size={12}/>{activeTitle}</span><label className="scope-picker"><select aria-label="操作范围" value={scope} onChange={event => setScope(event.target.value as Scope)}><option value="page">当前页</option><option value="chapter">当前章节</option><option value="book">整本教材</option><option value="selection" disabled={!selectedText}>选中内容</option></select><ChevronDown size={12}/></label></div>
         <textarea ref={input} value={prompt} onChange={event => setPrompt(event.target.value)} placeholder={activeSkill === 'chat' ? '关于这本教材，你想了解什么？' : '补充你的要求…'} aria-label="向 Copilot 输入要求" rows={3} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}/>
         <div className="composer-bottom"><span><CornerDownLeft size={12}/> 发送 <i>·</i> Shift + Enter 换行</span>{busy ? <button className="send-button" onClick={props.onStop} aria-label="停止任务"><Square size={15} fill="currentColor"/></button> : <button className="send-button" onClick={submit} disabled={!prompt.trim()} aria-label="发送要求" title={selectedInfo?.available ? '发送要求' : '此功能尚待接入'}><ArrowUp size={19}/></button>}</div>

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { slideTemplates } from './slide-templates.mjs';
 
 const configuredHome = process.env.COURSE_COPILOT_HOME || resolve(homedir(), '.course-copilot');
 let directory = resolve(configuredHome.replace(/^~(?=\/|$)/, homedir()));
@@ -284,8 +285,19 @@ function normalizeArtifact(record, artifact) {
   }
   recordName(artifact.id);
   if (artifact.kind === 'markdown' && typeof artifact.content !== 'string') fail(400, '文字资料缺少正文。');
-  if (artifact.kind === 'slides' && (!Array.isArray(artifact.slides) || !artifact.slides.every((slide) => object(slide)
-      && typeof slide.title === 'string' && typeof slide.content === 'string'))) fail(400, '课件需要包含标题和正文的页面列表。');
+  if (artifact.kind === 'slides') {
+    if (artifact.templateId !== undefined && !slideTemplates.some(template => template.id === artifact.templateId)) fail(400, '课件模板名称不正确。');
+    if (artifact.slides !== undefined && (!Array.isArray(artifact.slides) || !artifact.slides.every((slide) => object(slide)
+        && typeof slide.title === 'string' && typeof slide.content === 'string'))) fail(400, '课件页面需要包含标题和正文。');
+    if (artifact.chapters !== undefined && (!Array.isArray(artifact.chapters) || !artifact.chapters.length
+        || !artifact.chapters.every((chapter) => object(chapter) && typeof chapter.title === 'string' && chapter.title.trim()
+          && typeof chapter.url === 'string' && /\.pdf$/i.test(chapter.url)
+          && (chapter.filename === undefined || typeof chapter.filename === 'string')))) fail(400, '章节课件需要包含标题和 PDF 文件地址。');
+    if (!Array.isArray(artifact.slides) && !artifact.chapters?.length) fail(400, '课件需要包含页面内容或章节 PDF。');
+    if (artifact.sourceUrl !== undefined && (typeof artifact.sourceUrl !== 'string' || !/\.zip$/i.test(artifact.sourceUrl))) {
+      fail(400, '课件源文件需要使用 ZIP 文件地址。');
+    }
+  }
   if (['mindmap', 'knowledge-graph'].includes(artifact.kind)) {
     if (!Array.isArray(artifact.nodes) || !artifact.nodes.every((node) => object(node) && typeof node.id === 'string'
         && node.id.trim() && typeof node.label === 'string' && (node.page === undefined || positive(node.page)))
@@ -298,17 +310,28 @@ function normalizeArtifact(record, artifact) {
   if ((['video', 'file'].includes(artifact.kind) || artifact.url !== undefined)
       && (typeof artifact.url !== 'string' || !artifact.url.trim())) fail(400, '生成文件缺少本地文件地址。');
   const result = { ...artifact };
-  if (result.url !== undefined) {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(result.url) || result.url.startsWith('//')) {
-      fail(400, '请先让 Coding Agent 把生成文件保存到当前课程的 outputs 文件夹，再返回本地文件地址。');
-    }
-    if (!result.url.startsWith(`/api/courses/${encodeURIComponent(record.id)}/outputs/`)) {
-      const outputs = resolve(record.courseDir, 'outputs');
-      const local = isAbsolute(result.url) ? relative(outputs, result.url) : result.url.replace(/^outputs\//, '');
-      result.url = outputUrl(record.id, local.split(sep).join('/'));
-    }
+  if (result.url !== undefined) result.url = normalizeOutputUrl(record, result.url);
+  if (result.kind === 'slides') {
+    if (result.sourceUrl !== undefined) result.sourceUrl = normalizeOutputUrl(record, result.sourceUrl);
+    if (result.chapters) result.chapters = result.chapters.map(chapter => ({ ...chapter, url: normalizeOutputUrl(record, chapter.url) }));
   }
   return result;
+}
+
+function normalizeOutputUrl(record, url) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith('//')) {
+    fail(400, '生成文件应保存在当前课程的 outputs 文件夹，并使用本地文件地址。');
+  }
+  const prefix = `/api/courses/${encodeURIComponent(record.id)}/outputs/`;
+  if (url.startsWith(prefix)) {
+    let local;
+    try { local = decodeURIComponent(url.slice(prefix.length)); }
+    catch { fail(400, '生成文件地址的编码不正确。'); }
+    return outputUrl(record.id, local);
+  }
+  const outputs = resolve(record.courseDir, 'outputs');
+  const local = isAbsolute(url) ? relative(outputs, url) : url.replace(/^outputs\//, '');
+  return outputUrl(record.id, local.split(sep).join('/'));
 }
 
 async function writeArtifact(record, artifact, preserveExisting = false) {
@@ -316,10 +339,11 @@ async function writeArtifact(record, artifact, preserveExisting = false) {
   const path = await safePath(record.courseDir, 'outputs', `result-${recordName(incoming.id)}.json`);
   const existing = preserveExisting ? await readJson(path) : undefined;
   const result = existing ? normalizeArtifact(record, existing) : incoming;
-  if (result.url?.startsWith(`/api/courses/${encodeURIComponent(record.id)}/outputs/`)) {
+  const urls = [result.url, ...(result.kind === 'slides' ? [result.sourceUrl, ...(result.chapters || []).map(chapter => chapter.url)] : [])].filter(Boolean);
+  for (const url of new Set(urls)) {
     const prefix = `/api/courses/${encodeURIComponent(record.id)}/outputs/`;
     let local;
-    try { local = decodeURIComponent(result.url.slice(prefix.length)); }
+    try { local = decodeURIComponent(url.slice(prefix.length)); }
     catch { fail(400, '生成文件地址的编码不正确。'); }
     const filePath = await safePath(record.courseDir, 'outputs', outputRelative(local));
     try {

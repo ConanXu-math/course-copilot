@@ -136,13 +136,13 @@ export default function App() {
   function stopTask() { controller.current?.abort(); controller.current=null; setBusy(false); setMessages(current=>current.map(message=>message.status==='running'?{...message,status:'stopped',progress:'已停止。你可以调整要求后重新发送。'}:message)); }
   function clearSelection() { setSelectedText(''); window.getSelection()?.removeAllRanges(); }
 
-  async function sendSkill(skillId:SkillId,prompt:string,scope:Scope) {
+  async function sendSkill(skillId:SkillId,prompt:string,scope:Scope,templateId?:string) {
     if(!book || busy || workspace.switching || conversationChanging.current) return;
     const abort=new AbortController(); controller.current=abort; setBusy(true);
     const userId=crypto.randomUUID(), assistantId=crypto.randomUUID();
     setMessages(current=>[...current,{id:userId,role:'user',content:prompt,skillId},{id:assistantId,role:'assistant',content:'',skillId,status:'running',progress:'正在连接 Coding Agent…'}]);
     try {
-      await runSkill({skillId,book:{id:book.id,title:book.title,filename:book.filename,totalPages:book.totalPages,local:book.local},chapter,page,scope,selectedText,pageText,prompt,artifact:activeArtifact,history:messages.filter(message=>message.status!=='error' && message.status!=='stopped').map(({role,content})=>({role,content}))},event=>{
+      await runSkill({skillId,templateId,book:{id:book.id,title:book.title,filename:book.filename,totalPages:book.totalPages,local:book.local},chapter,page,scope,selectedText,pageText,prompt,artifact:activeArtifact,history:messages.filter(message=>message.status!=='error' && message.status!=='stopped').map(({role,content})=>({role,content}))},event=>{
         if(abort.signal.aborted || controller.current!==abort) return;
         if(event.type==='artifact') {
           const artifact=event.artifact;
