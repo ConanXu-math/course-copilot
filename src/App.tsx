@@ -182,23 +182,23 @@ export default function App() {
     setToast('补充文字已保存。');
   }
 
-  async function sendSkill(skillId:SkillId,prompt:string,scope:Scope,knowledgeGraphDetail?:'overview'|'detailed',templateId?:string) {
+  async function sendSkill(skillId:SkillId,prompt:string,scope:Scope,knowledgeGraphDetail?:'overview'|'detailed',templateId?:string, artifactOverride?:Artifact) {
     if(!book || busy || workspace.switching || conversationChanging.current) return;
     const quotePages = selectedText ? selectionPages : null;
     const quotedPages = scope === 'selection' ? quotePages : null;
-    const requestPage = quotedPages?.start ?? page;
+    const requestPage = artifactOverride?.source?.page ?? quotedPages?.start ?? page;
     const readingScope = getReadingScope(book.chapters, requestPage);
     const structureScope = skillId === 'mindmap' || skillId === 'knowledge-graph';
     const requestChapter = structureScope && scope === 'section' ? readingScope.section
       : structureScope && scope === 'chapter' ? readingScope.chapter
-      : quotedPages ? book.chapters.filter(item => item.page <= requestPage).at(-1) : chapter;
+      : quotedPages || artifactOverride ? book.chapters.filter(item => item.page <= requestPage).at(-1) : chapter;
     const quote = quotePages ? '引用来自 PDF 第 ' + quotePages.start + (quotePages.end === quotePages.start ? '' : '–' + quotePages.end) + ' 页：\n' + selectedText : selectedText;
     const abort=new AbortController(); controller.current=abort; setBusy(true);
     setMobileView('copilot');
     const userId=crypto.randomUUID(), assistantId=crypto.randomUUID();
     setMessages(current=>[...current,{id:userId,role:'user',content:prompt,skillId},{id:assistantId,role:'assistant',content:'',skillId,status:'running',progress:'正在连接 Coding Agent…'}]);
     try {
-      await runSkill({skillId,...(skillId==='slides' && templateId ? {templateId} : {}),book:{id:book.id,title:book.title,filename:book.filename,totalPages:book.totalPages,local:book.local},chapter:requestChapter,page:requestPage,scope,...(skillId==='knowledge-graph'?{knowledgeGraphDetail:knowledgeGraphDetail||'overview'}:{}),selectedText:quote,pageText:requestPage===page?pageText:'',prompt,artifact:contextArtifact,history:messages.filter(message=>message.status!=='error' && message.status!=='stopped').map(({role,content})=>({role,content}))},event=>{
+      await runSkill({skillId,...(skillId==='slides' && templateId ? {templateId} : {}),book:{id:book.id,title:book.title,filename:book.filename,totalPages:book.totalPages,local:book.local},chapter:requestChapter,page:requestPage,scope,...(skillId==='knowledge-graph'?{knowledgeGraphDetail:knowledgeGraphDetail||'overview'}:{}),selectedText:artifactOverride?'':quote,pageText:requestPage===page?pageText:'',prompt,artifact:artifactOverride ?? contextArtifact,history:messages.filter(message=>message.status!=='error' && message.status!=='stopped').map(({role,content})=>({role,content}))},event=>{
         if(abort.signal.aborted || controller.current!==abort) return;
         if(event.type==='artifact') {
           const artifact=event.artifact;
@@ -283,7 +283,13 @@ export default function App() {
         {book ? <>
           <div className={`reader-mount ${activeTab==='textbook'?'':'hidden'}`}><TextbookReader book={book} page={page} navigationId={pageNavigationId} onPageChange={goToPage} onVisiblePageChange={visiblePageChanged} onDocumentReady={documentReady} onTextChange={textReady} onSelectionChange={selectionReady}/></div>
           {(activeTab==='materials' || activeTab==='mindmaps' || activeTab==='knowledge-graphs') && <MaterialsLibrary artifacts={artifacts} kind={activeTab==='mindmaps'?'mindmap':activeTab==='knowledge-graphs'?'knowledge-graph':undefined} book={book} onOpen={openArtifact}/>}
-          {activeArtifact && <ArtifactViewer key={activeArtifact.id} artifact={activeArtifact} onPage={goToPage} book={book} onEditNode={busy || workspace.switching || moving ? undefined : (nodeId,userText)=>editNode(activeArtifact.id,nodeId,userText)}/>}
+          {activeArtifact && <ArtifactViewer key={activeArtifact.id} artifact={activeArtifact} onPage={goToPage} book={book} onQuizAction={busy || workspace.switching || moving ? undefined : (question, answer, action) => {
+            setContextArtifactId(activeArtifact.id);
+            const prompt = action === 'feedback'
+              ? `请反馈《${activeArtifact.title}》中的这一题。题目：\n${question.prompt}\n\n我的作答：\n${answer}\n\n只在对话中反馈这道题：指出已正确的部分、首个关键错误或推理缺口，给出下一步提示。不要直接展开完整参考答案，不要重建或覆盖练习卡片。`
+              : `请根据《${activeArtifact.title}》中这道题和已有作答反馈，针对暴露的薄弱点出一道变式练习；若尚无错因证据，就练习同一知识点，不推断我有错误。题目：\n${question.prompt}\n\n我的作答：\n${answer || '尚未作答'}\n\n保存为新的逐题卡片，保留原练习。`;
+            void sendSkill('quiz',prompt,'page',undefined,undefined,{...activeArtifact,source:{scope:'page',page:question.page ?? activeArtifact.source?.page ?? page}});
+          }} onEditNode={busy || workspace.switching || moving ? undefined : (nodeId,userText)=>editNode(activeArtifact.id,nodeId,userText)}/>}
         </> : <div className="boot-state">{bootError ? <><BookOpen size={36}/><h2>先打开一本教材</h2><p>{bootError}</p><button className="primary-button" onClick={()=>fileInput.current?.click()}><Upload size={16}/>导入 PDF</button></> : <><LoaderCircle className="spin" size={28}/><p>正在准备你的课程空间…</p></>}</div>}
       </main>
 

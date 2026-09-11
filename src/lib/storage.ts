@@ -96,6 +96,11 @@ const textField = (object: Record<string, unknown>, field: string) => typeof obj
 
 function isArtifact(value: unknown): value is Artifact {
   if (!isObject(value) || !textField(value, 'id') || !textField(value, 'title')) return false;
+  if (value.kind === 'quiz') return Array.isArray(value.questions) && value.questions.length > 0
+    && value.questions.every(question => isObject(question) && textField(question, 'id') && textField(question, 'prompt')
+      && ['knowledgePoint', 'difficulty', 'answer', 'explanation'].every(key => question[key] === undefined || textField(question, key))
+      && (question.page === undefined || positivePage(question.page))
+      && (question.hints === undefined || Array.isArray(question.hints) && question.hints.every(hint => typeof hint === 'string')));
   if (value.kind === 'markdown') return textField(value, 'content');
   if (value.kind === 'video' || value.kind === 'file') return textField(value, 'url') && (value.filename === undefined || textField(value, 'filename'));
   if (value.kind === 'slides') return (value.url === undefined || textField(value, 'url')) && Array.isArray(value.slides) && value.slides.every(slide => isObject(slide) && textField(slide, 'title') && textField(slide, 'content'));

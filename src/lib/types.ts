@@ -110,7 +110,19 @@ export interface SkillRequest {
   history: { role: 'user' | 'assistant'; content: string }[];
 }
 
+export interface QuizQuestion {
+  id: string;
+  prompt: string;
+  knowledgePoint?: string;
+  difficulty?: string;
+  page?: number;
+  hints?: string[];
+  answer?: string;
+  explanation?: string;
+}
+
 export type Artifact = (
+  | { id: string; title: string; kind: 'quiz'; questions: QuizQuestion[] }
   | { id: string; title: string; kind: 'markdown'; content: string }
   | { id: string; title: string; kind: 'mindmap' | 'knowledge-graph'; nodes: KnowledgeGraphNode[]; edges: KnowledgeGraphEdge[]; schemaVersion?: 2; detailLevel?: KnowledgeGraphDetail; coverage?: KnowledgeGraphCoverage }
   | { id: string; title: string; kind: 'slides'; slides?: { title: string; content: string }[]; url?: string;

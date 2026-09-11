@@ -8,7 +8,7 @@
 
 | 方向 | 功能 ID | 功能列表所在文件 | 常用结果类型 |
 | --- | --- | --- | --- |
-| 教材、讲解与练习 | `textbook-parse`、`explain`、`quiz` | [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) | 普通回答或 `markdown` |
+| 教材、讲解与练习 | `textbook-parse`、`explain`、`quiz` | [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) | 普通回答、`markdown` 或 `quiz` |
 | 知识结构 | `mindmap`、`knowledge-graph` | [`server/skills/structure.mjs`](../server/skills/structure.mjs)（随仓库提供默认路径） | `mindmap`、`knowledge-graph` |
 | 课件与视频 | `slides`、`video` | [`server/skills/materials.mjs`](../server/skills/materials.mjs) | `slides`、`video` 或 `file` |
 
@@ -149,6 +149,7 @@ export const tutoringSkills = [
 | `kind` | 需要的字段 | 页面展示 |
 | --- | --- | --- |
 | `markdown` | `content` 字符串 | 带公式的文字资料 |
+| `quiz` | `questions` 题目列表，字段见 [卡片说明](../skills/quiz/references/cards.md) | 逐题自测、渐进提示、隐藏答案和 Copilot 反馈 |
 | `mindmap` | `nodes: [{id, label, page?, userText?}]`、`edges: [{source, target, label?}]` | 层级导图；节点可跳到教材页码；学生补充显示为蓝色 |
 | `knowledge-graph` | v2：`schemaVersion: 2`、`detailLevel`、`coverage`、节点 `conceptKey`/`type`、连线 `id`/`basis`/`evidence` | 概念网络；搜索、拖动、缩放；证据链接回 PDF 页码 |
 | `slides` | PDF 课件使用 `chapters: [{title, url, filename?}]`，可选 `sourceUrl`；文字课件使用 `slides: [{title, content}]`，可选 `url` | 章节 PDF 预览、下载和源文件 ZIP；逐页文字课件 |
@@ -167,7 +168,7 @@ export const tutoringSkills = [
 
 `url` 指向已经存在的课程输出文件，可以使用 `outputs` 下的相对路径或完整本地路径；服务会转换成当前课程的浏览器地址。远程下载链接不能直接作为这里的文件结果。不要返回并未生成的 PDF、PPTX 或视频地址。
 
-例如「习题生成」可以使用 `markdown`，不需要新建一种结果类型。只有现有类型确实无法表达时，才一起修改 [`Artifact` 类型](../src/lib/types.ts)、[`normalizeArtifact` 与文件保存](../server/course-store.mjs)、[`ArtifactViewer`](../src/components/ArtifactViewer.tsx) 以及 [`server/agent.mjs`](../server/agent.mjs) 中告诉 Agent 的结果格式。
+例如练习默认使用 `quiz` 卡片，打印试卷可使用 `markdown`。只有现有类型确实无法表达时，才一起修改 [`Artifact` 类型](../src/lib/types.ts)、[`normalizeArtifact` 与文件保存](../server/course-store.mjs)、[`ArtifactViewer`](../src/components/ArtifactViewer.tsx) 以及 [`server/agent.mjs`](../server/agent.mjs) 中告诉 Agent 的结果格式。
 
 ## 6. 新增一个功能按钮
 

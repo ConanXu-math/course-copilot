@@ -273,9 +273,9 @@ LaTeX 环境检查结果：${JSON.stringify(status.latex)}。编译使用检测�
 ${slidesInstructions}
 可用 Skills：${JSON.stringify(context.skills.map(({ title, path }) => ({ title, path })))}
 当用户需要图谱、课件、视频、文档等学习资料时，将真实结果写入 ${context.outputsDir}，同时将界面展示内容写入 ${resultPath}（UTF-8 JSON 对象，id 为 ${resultId}，title 为资料标题）。
-根据结果选择 kind 及字段：markdown 使用 content；mindmap 使用 nodes:[{id,label,page?}]、edges:[{source,target,label?}]；knowledge-graph 必须读取知识图谱 Skill 及其 references/schema.md，使用 schemaVersion:2，包含 detailLevel、coverage、节点的 conceptKey/type、连线的 id/basis/evidence，证据逐条绑定实际 PDF 页码与依据摘要。PDF 课件使用 kind:slides、chapters:[{title,url,filename?}]，每章一个 PDF，可附 sourceUrl 指向 LaTeX 源文件 ZIP，templateId 记录实际采用的内置模板 ID；文字课件使用 kind:slides、slides:[{title,content}]，可附 url；video 或 file 使用 url 和可选 filename。全部文件地址指向当前 outputs 下实际生成的文件。
+根据结果选择 kind 及字段：markdown 使用 content；quiz 使用 questions:[{id,prompt,knowledgePoint?,difficulty?,page?,hints?,answer?,explanation?}]，交互与字段细节见出题 Skill 的 references/cards.md；mindmap 使用 nodes:[{id,label,page?}]、edges:[{source,target,label?}]；knowledge-graph 必须读取知识图谱 Skill 及其 references/schema.md，使用 schemaVersion:2，包含 detailLevel、coverage、节点的 conceptKey/type、连线的 id/basis/evidence，证据逐条绑定实际 PDF 页码与依据摘要。PDF 课件使用 kind:slides、chapters:[{title,url,filename?}]，每章一个 PDF，可附 sourceUrl 指向 LaTeX 源文件 ZIP，templateId 记录实际采用的内置模板 ID；文字课件使用 kind:slides、slides:[{title,content}]，可附 url；video 或 file 使用 url 和可选 filename。全部文件地址指向当前 outputs 下实际生成的文件。
 指定的 ${resultPath} 是待检查的结果文件，只写此 JSON，不另写 result-*.json，也不覆盖历史资料。应用通过保存检查后才会将它加入资料列表。不要在检查前宣称已加入资料库。
-本界面支持 Markdown 表格、图片，以及上述知识结构和课件资料，不会把 Mermaid 代码块或 HTML、JavaScript 代码直接运行成可视化。静态图可保存为 outputs 中的 PNG 或 SVG，并用 Markdown 图片语法引用实际文件，例如 ![图的说明](outputs/图文件名.svg)。知识结构资料支持浏览、缩放和带页码节点跳转，不代表已有参数调整或数值模拟能力。
+本界面支持 Markdown 表格、图片，以及逐题练习卡片、上述知识结构和课件资料，不会把 Mermaid 代码块或 HTML、JavaScript 代码直接运行成可视化。静态图可保存为 outputs 中的 PNG 或 SVG，并用 Markdown 图片语法引用实际文件，例如 ![图的说明](outputs/图文件名.svg)。知识结构资料支持浏览、缩放和带页码节点跳转，不代表已有参数调整或数值模拟能力。
 普通问答可以直接回答，也可以在有助于理解时主动配图或生成可视化资料；纯文字问答不必创建资料。生成资料时仍在回答中说明主要结果，不要将上述界面数据格式贴给学生。不要声称未执行的工作已经完成。`;
     const structureScope = ['mindmap', 'knowledge-graph'].includes(request.skillId) && ['section', 'chapter'].includes(request.scope)
       ? `本次范围是${request.scope === 'section' ? '当前节，包含该节的下级小节，不扩大到整章' : '当前章，包含章内各节'}。${request.chapter

@@ -7,7 +7,7 @@ import './slide-template-picker.css';
 const tools = [
   { id: 'textbook-parse', title: '教材解析', subtitle: '提取正文公式与图片', icon: FileText, prompt: '请解析所选范围的教材，提取正文、LaTeX 公式、图片和目录，保留对应的 PDF 页码，并保存为学习资料。' },
   { id: 'explain', title: '讲解内容', subtitle: '把难点讲明白', icon: BookOpen, prompt: '请讲解当前内容，先给出直观理解，再展开关键步骤。' },
-  { id: 'quiz', title: '知识点出题', subtitle: '围绕知识点练一练', icon: ClipboardList, prompt: '请围绕当前知识点生成由浅入深的练习题，先列题目，再集中给出参考答案、解析和易错点，并保存为学习资料。' },
+  { id: 'quiz', title: '知识点出题', subtitle: '围绕知识点练一练', icon: ClipboardList, prompt: '请围绕当前知识点生成由浅入深的练习题，保存为逐题练习卡片，答案先隐藏，提供渐进提示、参考答案和解析。' },
   { id: 'mindmap', title: '思维导图', subtitle: '梳理章节脉络', icon: Waypoints, prompt: '请将当前内容整理为层次清晰的思维导图。' },
   { id: 'knowledge-graph', title: '知识图谱', subtitle: '发现知识间的联系', icon: Network, prompt: '请梳理当前内容中的知识点，以及它们之间的关系。' },
   { id: 'slides', title: '生成课件', subtitle: '把知识变成课件', icon: FileSliders, prompt: '请根据当前内容生成适合课堂讲解的课件。' },

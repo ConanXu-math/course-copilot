@@ -7,6 +7,7 @@ import { graphPlacement, sortGraphArtifacts } from '../lib/artifact-order';
 import KnowledgeGraphView from './KnowledgeGraphView';
 import { getMindmapText } from '../../shared/mindmap-text.mjs';
 import Markdown from './Markdown';
+import QuizView, { type QuizAction } from './QuizView';
 import '@xyflow/react/dist/style.css';
 import './graph-edit.css';
 import './pdf-slides.css';
@@ -199,7 +200,7 @@ function PdfSlidesView({ artifact }: { artifact: Extract<Artifact, { kind: 'slid
   </div>;
 }
 
-export default function ArtifactViewer({artifact,onPage,book,onEditNode}:{artifact:Artifact;onPage:(page:number)=>void;book?:Book;onEditNode?:EditNode}) {
+export default function ArtifactViewer({artifact,onPage,book,onEditNode,onQuizAction}:{artifact:Artifact;onPage:(page:number)=>void;book?:Book;onEditNode?:EditNode;onQuizAction?:QuizAction}) {
   const url = 'url' in artifact && artifact.url ? safeUrl(artifact.url) : undefined;
   function downloadText() {
     if (artifact.kind !== 'markdown') return;
@@ -207,6 +208,7 @@ export default function ArtifactViewer({artifact,onPage,book,onEditNode}:{artifa
     const a=document.createElement('a'); a.href=blobUrl; a.download=`${artifact.title}.md`; a.click(); setTimeout(()=>URL.revokeObjectURL(blobUrl),1000);
   }
   return <section className="artifact-viewer"><div className="artifact-toolbar"><span><FileText size={16}/>{artifact.title}</span>{artifact.kind==='markdown' && <button className="text-button" onClick={downloadText}><Download size={15}/>下载</button>}{url && <a className="text-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>打开文件</a>}</div>
+    {artifact.kind==='quiz' && <QuizView artifact={artifact} book={book} onPage={onPage} onAction={onQuizAction}/>}
     {artifact.kind==='markdown' && <div className="artifact-document"><Markdown book={book}>{artifact.content}</Markdown></div>}
     {artifact.kind==='mindmap' && <GraphView artifact={artifact} onPage={onPage} book={book} onEditNode={onEditNode}/>}
     {artifact.kind==='knowledge-graph' && <KnowledgeGraphView artifact={artifact} onPage={onPage} book={book}/>}
@@ -223,6 +225,7 @@ export function MaterialsLibrary({ artifacts, onOpen, kind, book }: {
   book?: Book;
 }) {
   const materialTypes = {
+    quiz: { title: '练习卡片', icon: FileText },
     markdown: { title: '讲解笔记', icon: FileText },
     mindmap: { title: '思维导图', icon: Waypoints },
     'knowledge-graph': { title: '知识图谱', icon: Network },

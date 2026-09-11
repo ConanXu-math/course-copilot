@@ -301,11 +301,22 @@ function normalizeArtifactSource(source) {
 
 function normalizeArtifact(record, artifact, options = {}) {
   if (!object(artifact) || typeof artifact.title !== 'string'
-      || !['markdown', 'mindmap', 'knowledge-graph', 'slides', 'video', 'file'].includes(artifact.kind)) {
+      || !['markdown', 'quiz', 'mindmap', 'knowledge-graph', 'slides', 'video', 'file'].includes(artifact.kind)) {
     fail(400, '生成结果格式不正确。');
   }
   recordName(artifact.id);
   if (artifact.kind === 'markdown' && typeof artifact.content !== 'string') fail(400, '文字资料缺少正文。');
+  if (artifact.kind === 'quiz') {
+    if (!Array.isArray(artifact.questions) || !artifact.questions.length || !artifact.questions.every(question => object(question)
+        && typeof question.id === 'string' && question.id.trim()
+        && typeof question.prompt === 'string' && question.prompt.trim()
+        && ['knowledgePoint', 'difficulty', 'answer', 'explanation'].every(key => question[key] === undefined || typeof question[key] === 'string')
+        && (question.page === undefined || positive(question.page) && (!record.totalPages || question.page <= record.totalPages))
+        && (question.hints === undefined || Array.isArray(question.hints) && question.hints.every(hint => typeof hint === 'string' && hint.trim())))) {
+      fail(400, '练习卡片需要有效的题目、提示和参考答案字段。');
+    }
+    if (new Set(artifact.questions.map(question => question.id)).size !== artifact.questions.length) fail(400, '练习题的 id 不能重复。');
+  }
   if (artifact.kind === 'slides') {
     if (artifact.templateId !== undefined && !slideTemplates.some(template => template.id === artifact.templateId)) fail(400, '课件模板名称不正确。');
     if (artifact.slides !== undefined && (!Array.isArray(artifact.slides) || !artifact.slides.every((slide) => object(slide)
