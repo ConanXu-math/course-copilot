@@ -30,6 +30,7 @@ export class CommandClient extends EventEmitter {
     const message = `${instructions}\n\n${prompt}`;
     let promptFile;
     let child;
+    let ended;
     const stop = () => stopProcess(child);
     try {
       if (this.config.args.some(arg => arg.includes('{promptFile}'))) {
@@ -50,8 +51,8 @@ export class CommandClient extends EventEmitter {
       child.stderr.setEncoding('utf8');
       child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-4000); });
       child.stdin.on('error', error => { if (error.code !== 'EPIPE') failure = error; });
-      const ended = new Promise(resolve => {
-        child.once('error', error => { failure = error; resolve(null); });
+      ended = new Promise(resolve => {
+        child.once('error', error => { failure = error; });
         child.once('close', resolve);
       });
       child.stdin.end(this.config.args.some(arg => /\{prompt(?:File)?\}/.test(arg)) ? undefined : message);
@@ -72,6 +73,9 @@ export class CommandClient extends EventEmitter {
     } finally {
       signal.removeEventListener('abort', stop);
       stop();
+      // Abort and early iterator return must finish the process before the
+      // caller can restore course files or remove the command's prompt file.
+      if (ended) await ended;
       this.process = undefined;
       if (promptFile) await rm(promptFile, { force: true });
     }

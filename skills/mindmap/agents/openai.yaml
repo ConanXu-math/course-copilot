@@ -1,0 +1,3 @@
+interface:
+  display_name: Mindmap
+  short_description: Build hierarchical mindmaps from textbook content.

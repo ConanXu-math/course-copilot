@@ -35,7 +35,7 @@ export async function* commandMessages(executable, args, cwd, prompt, signal, on
   child.stderr.on('data', () => {});
   child.stdin.on('error', error => { if (error.code !== 'EPIPE') processError = error; });
   const ended = new Promise(resolve => {
-    child.once('error', error => { processError = error; resolve(null); });
+    child.once('error', error => { processError = error; });
     child.once('close', resolve);
   });
   const stop = () => stopProcess(child);
@@ -56,6 +56,9 @@ export async function* commandMessages(executable, args, cwd, prompt, signal, on
     signal.removeEventListener('abort', stop);
     lines.close();
     stop();
+    // An abort or early iterator return must wait for the process to really exit
+    // before the caller restores course files or reclaims temporary resources.
+    await ended;
   }
 }
 

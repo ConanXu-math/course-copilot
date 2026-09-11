@@ -16,6 +16,7 @@ export class AcpClient extends EventEmitter {
   async initialize() {
     const environment = this.config.prepareEnvironment ? await this.config.prepareEnvironment(this.cwd) : process.env;
     this.process = startProcess(this.executable, this.config.args, this.cwd, { ...environment, ...this.config.environment });
+    this.processEnded = new Promise(resolve => this.process.once('close', resolve));
     this.process.stderr.on('data', () => {});
     this.process.once('error', error => this.close(error));
     this.process.once('close', () => this.close(new Error(`${this.config.name} 已退出，请检查 ACP 启动参数、版本和登录状态。`)));
@@ -185,11 +186,15 @@ export class AcpClient extends EventEmitter {
     } finally {
       clearTimeout(timer);
       signal.removeEventListener('abort', cancel);
-      if (!stopped && active.session && !this.closed) {
-        void this.agent.notify('session/cancel', { sessionId: active.session.sessionId }).catch(() => {});
+      if (!stopped && !this.closed) {
+        if (active.session) void this.agent.notify('session/cancel', { sessionId: active.session.sessionId }).catch(() => {});
         this.close();
       }
       await this.release(active.session);
+      // The course saver restores historical files after this iterator returns.
+      // Session cancellation/connection shutdown alone is not proof that the
+      // owned Agent and its file commands have physically stopped writing.
+      if (this.closed) await this.processEnded;
       this.active = undefined;
     }
   }

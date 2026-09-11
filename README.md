@@ -12,7 +12,7 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 
 本机 HTTP 服务负责传递请求、返回进度、读写文件和提供 PDF／生成文件。教学任务统一交给 `server/agent.mjs` 中的 Coding Agent。七个专项 Skill 与自由问答按钮表达操作意图，Agent 可以组合多个 Skill。
 
-**支持个人部署，选择 Agent 后连接即可，默认统一使用 ACP。** 提供 Codex、Claude Code、OpenCode、Cursor、Gemini CLI、Copilot CLI、Qwen Code、Kimi Code、Kiro CLI 和自定义 Agent。Codex 与 Claude 的 ACP 适配器随项目安装；原生接口及非交互命令行兼容选项放在高级设置中。每个人使用自己的 Agent 账号。教材解析、讲解内容、知识点出题和 LaTeX Beamer 课件提供随项目运行的 Skill；思维导图、知识图谱和讲解视频提供自定义 Skill 接入位置。各项任务通过所选 Agent 执行，路径已配置不代表任务已经执行成功。
+**支持个人部署，选择 Agent 后连接即可，默认统一使用 ACP。** 提供 Codex、Claude Code、OpenCode、Cursor、Gemini CLI、Copilot CLI、Qwen Code、Kimi Code、Kiro CLI 和自定义 Agent。Codex 与 Claude 的 ACP 适配器随项目安装；原生接口及非交互命令行兼容选项放在高级设置中。每个人使用自己的 Agent 账号。教材解析、讲解内容、知识点出题、思维导图、知识图谱和 LaTeX Beamer 课件随项目提供 Skill；讲解视频可在工作区设置中填写自定义 Skill 路径。各项任务通过所选 Agent 执行，路径已配置不代表任务已经执行成功。
 
 ## 运行
 
@@ -84,7 +84,19 @@ COURSE_COPILOT_HOME="$HOME/Documents/我的课程资料" npm start
 
 首次使用时可以直接导入自己的 PDF；如果本地项目目录已有配套的最优化教材 PDF，空课程目录会自动导入它，源码仓库不包含该 PDF。导入 PDF 会新增独立课程，同名教材使用不同文件夹。旧版浏览器中的教材、阅读和对话会在启动时迁移；服务确认成功后才清理对应旧记录。迁移失败时原浏览器数据仍保留，刷新可重试。
 
-阅读器使用 PDF.js 展示原始 PDF，页码对应 PDF 页序。正文随着阅读提取并保存到 `textbook/pages/`；**当前不会自动解析整本书或提取全部图片**。整章、整书的处理由 Agent 调用相应 Skill 完成。
+阅读器使用 PDF.js 连续滚动展示原始 PDF，页码对应 PDF 页序。滚动时界面同步当前可见页；目录跳转、书签和页码输入会定位到指定页。选中文字可跨连续页面引用。正文随着阅读提取并保存到 `textbook/pages/`。整章、整书的知识结构任务由 Agent 调用相应 Skill 补读原始 PDF。
+
+## 思维导图与知识图谱
+
+[`skills/mindmap`](skills/mindmap/SKILL.md) 与 [`skills/knowledge-graph`](skills/knowledge-graph/SKILL.md) 随项目提供，默认路径在 [`server/skills/structure.mjs`](server/skills/structure.mjs) 中按仓库位置计算。连接 Agent 后即可在课程工具中选择。
+
+思维导图按章、节或选文范围生成层级知识树。节点可带 PDF 页码，点击返回教材。学生可在节点上保存蓝色补充文字；生成原文保持黑色，补充通过专用接口持久保存。
+
+知识图谱使用 v2 格式，支持概览与详细两种深度。节点记录概念类型与同义标识，连线记录关系文字、教材依据或推断标记，以及带页码的证据摘要。中央面板提供概念网络视图，支持搜索、拖动、缩放和证据跳转。
+
+学习资料按类型分列：全部资料、思维导图、知识图谱。列表按教材章节顺序排列，并显示每条资料的范围标注。继续讨论某份导图或图谱时，Copilot 会带上该资料上下文。
+
+PDF 页码范围读取共用 [`skills/mindmap/scripts/read-pages.mjs`](skills/mindmap/scripts/read-pages.mjs)。知识图谱 JSON 写完后，运行 [`skills/knowledge-graph/scripts/validate-knowledge-graph.mjs`](skills/knowledge-graph/scripts/validate-knowledge-graph.mjs) 检查结构。
 
 ## LaTeX 公式
 
@@ -174,7 +186,8 @@ ACP 模式将公共教学要求、教材上下文与本轮要求交给同一个�
 | --- | --- |
 | `skillId` | 用户选择的操作意图 |
 | `book`、`chapter`、`page` | 当前教材、章节与页码 |
-| `scope` | 当前页、当前章节、选中内容或整本教材 |
+| `scope` | 当前页、当前节、当前章、选中内容或整本教材 |
+| `knowledgeGraphDetail` | 知识图谱深度：`overview` 或 `detailed` |
 | `selectedText`、`pageText` | 选中文字、当前页正文 |
 | `prompt` | 用户要求 |
 | `artifact` | 正在查看的结果，可要求继续修改 |
@@ -208,12 +221,12 @@ ACP 模式将公共教学要求、教材上下文与本轮要求交给同一个�
 | `done` | 无 | 任务完成 |
 | `error` | `message` | 显示失败原因 |
 
-每次需要生成资料时，接入层会把一个 `outputs/result-<结果ID>.json` 的完整路径告诉所选 Agent。Agent 将文件和这个 JSON 对象写入当前课程的 `outputs`；JSON 中包含下表的展示内容。任务完成后服务读取结果，检查引用的本地文件，并发送 `artifact` 事件供界面打开。普通问答不要求生成文件。继续修改时会生成新的资料，原资料保留。
+每次需要生成资料时，接入层会把一个 `outputs/pending-<结果ID>.json` 的完整路径告诉所选 Agent。Agent 将展示用 JSON 写入该待检查文件，并把图片、PDF 等媒体文件写入同一 `outputs` 目录。服务校验通过后保存为 `result-<结果ID>.json` 并发送 `artifact` 事件；校验失败时保留已有资料。普通问答不要求生成文件。继续修改时会生成新的资料，原资料保留。
 
 | `artifact.kind` | 内容 |
 | --- | --- |
 | `markdown` | `content` 正文 |
-| `mindmap` / `knowledge-graph` | `nodes` 与 `edges`，节点可带教材页码 |
+| `mindmap` / `knowledge-graph` | `nodes` 与 `edges`，节点可带教材页码；思维导图节点可含 `userText` 学生补充；知识图谱 v2 含 `detailLevel`、`coverage`、连线 `evidence` 与 `basis` |
 | `slides` | PDF 课件使用 `chapters: [{title, url, filename?}]`，可附源文件 ZIP 的 `sourceUrl`；文字课件使用 `slides: [{title, content}]`，可附 `url` |
 | `video` / `file` | 文件 `url`，可选 `filename` |
 

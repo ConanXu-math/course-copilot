@@ -1,0 +1,3 @@
+interface:
+  display_name: Knowledge Graph
+  short_description: Build textbook knowledge graphs with evidence-backed relations.

@@ -9,7 +9,7 @@
 | 方向 | 功能 ID | 功能列表所在文件 | 常用结果类型 |
 | --- | --- | --- | --- |
 | 教材、讲解与练习 | `textbook-parse`、`explain`、`quiz` | [`server/skills/tutoring.mjs`](../server/skills/tutoring.mjs) | 普通回答或 `markdown` |
-| 知识结构 | `mindmap`、`knowledge-graph` | [`server/skills/structure.mjs`](../server/skills/structure.mjs) | `mindmap`、`knowledge-graph` |
+| 知识结构 | `mindmap`、`knowledge-graph` | [`server/skills/structure.mjs`](../server/skills/structure.mjs)（随仓库提供默认路径） | `mindmap`、`knowledge-graph` |
 | 课件与视频 | `slides`、`video` | [`server/skills/materials.mjs`](../server/skills/materials.mjs) | `slides`、`video` 或 `file` |
 
 `chat` 是自由问答，不需要另外填写一个 Skill 路径。
@@ -113,12 +113,13 @@ export const tutoringSkills = [
 | --- | --- |
 | `prompt`、`skillId` | 学生要求和所选功能 |
 | `book`、`chapter`、`page` | 教材、章节和 PDF 页码 |
-| `scope` | `page` 当前页、`chapter` 当前章节、`selection` 选中内容、`book` 整本教材 |
+| `scope` | `page` 当前页、`section` 当前节、`chapter` 当前章、`selection` 选中内容、`book` 整本教材 |
+| `knowledgeGraphDetail` | 知识图谱深度：`overview` 概览、`detailed` 详细 |
 | `pageText`、`selectedText` | 已提取的当前页正文、学生选中文字 |
 | `history` | 当前对话的历史问答 |
 | `artifact` | 正在查看、可能需要继续修改的学习资料 |
 
-[`server/agent.mjs`](../server/agent.mjs) 再根据课程 ID 查找真实的课程目录，告诉 Agent：原始 PDF 路径、解析内容目录、`outputs` 路径、选定 Skill 的路径，以及本次结果 JSON 的完整路径和 ID。
+[`server/agent.mjs`](../server/agent.mjs) 再根据课程 ID 查找真实的课程目录，告诉 Agent：原始 PDF 路径、解析内容目录、`outputs` 路径、选定 Skill 的路径，以及本次待检查 JSON 的完整路径（`outputs/pending-<结果ID>.json`）和结果 ID。教材总页数来自服务端课程元数据。
 
 这些信息是交给 Agent 的任务上下文，不是自动注入 Skill 脚本的环境变量，也不是要求每个 Skill 实现一个 `run(request, context)` 函数。若 Skill 需要调用程序，由 Agent 按 `SKILL.md` 将这些实际路径作为程序参数传入。
 
@@ -128,9 +129,9 @@ export const tutoringSkills = [
 
 普通问答直接输出中文与 Markdown，公式会自动显示。用户要求保存学习资料时：
 
-1. 在本次课程的 `outputs` 中生成所需文件。
-2. 使用任务指定的结果 ID 和完整路径，写入一个 UTF-8 JSON 对象。
-3. 在回答中简要说明实际完成的内容。任务完成后，公共服务读取该 JSON，保存并在页面展示。
+1. 在本次课程的 `outputs` 中生成所需媒体文件。
+2. 使用任务指定的待检查路径和结果 ID，写入一个 UTF-8 JSON 对象。
+3. 在回答中简要说明实际完成的内容。服务校验通过后保存为 `result-<结果ID>.json` 并在页面展示。
 
 下例只表示文字资料的字段；实际使用时，ID 要替换为本次任务提供的值，正文要替换为真实生成内容：
 
@@ -148,12 +149,15 @@ export const tutoringSkills = [
 | `kind` | 需要的字段 | 页面展示 |
 | --- | --- | --- |
 | `markdown` | `content` 字符串 | 带公式的文字资料 |
-| `mindmap`、`knowledge-graph` | `nodes: [{id, label, page?}]`、`edges: [{source, target, label?}]` | 可移动缩放的图；节点可跳到教材页码 |
+| `mindmap` | `nodes: [{id, label, page?, userText?}]`、`edges: [{source, target, label?}]` | 层级导图；节点可跳到教材页码；学生补充显示为蓝色 |
+| `knowledge-graph` | v2：`schemaVersion: 2`、`detailLevel`、`coverage`、节点 `conceptKey`/`type`、连线 `id`/`basis`/`evidence` | 概念网络；搜索、拖动、缩放；证据链接回 PDF 页码 |
 | `slides` | PDF 课件使用 `chapters: [{title, url, filename?}]`，可选 `sourceUrl`；文字课件使用 `slides: [{title, content}]`，可选 `url` | 章节 PDF 预览、下载和源文件 ZIP；逐页文字课件 |
 | `video` | `url`，可选 `filename` | 视频播放 |
 | `file` | `url`，可选 `filename` | 文件下载 |
 
-所有结果还需要 `id` 和 `title`。图的节点 ID 应唯一，连线端点应引用存在的节点，`page` 使用 PDF 页序。`slides` 的正文和文字资料一样支持 Markdown 与数学公式。
+所有结果还需要 `id` 和 `title`。图的节点 ID 应唯一，连线端点应引用存在的节点，`page` 使用 PDF 页序。思维导图的学生补充通过 `PATCH /api/courses/:id/artifacts/:artifactId/nodes/:nodeId` 保存，Agent 生成时写入的 `userText` 会被忽略。`slides` 的正文和文字资料一样支持 Markdown 与数学公式。
+
+[`skills/mindmap`](../skills/mindmap/SKILL.md) 与 [`skills/knowledge-graph`](../skills/knowledge-graph/SKILL.md) 已随仓库提供。PDF 页码读取共用 [`skills/mindmap/scripts/read-pages.mjs`](../skills/mindmap/scripts/read-pages.mjs)。知识图谱可参考 [`references/schema.md`](../skills/knowledge-graph/references/schema.md)，JSON 写完后用 [`validate-knowledge-graph.mjs`](../skills/knowledge-graph/scripts/validate-knowledge-graph.mjs) 检查结构。新生成写入仍按当前教材总页数校验页码；已保存的历史图谱在读取与 autosave 时会放宽页码上界，只要求正整数页码与完整 v2 结构。
 
 仓库中的 [`textbook-to-ppt`](../skills/textbook-to-ppt/SKILL.md) 使用 LaTeX Beamer 生成章节 PDF，并在 [`materials.mjs`](../server/skills/materials.mjs) 配置默认路径。具体输入范围、编译方式和返回示例见 [课件接入说明](../skills/textbook-to-ppt/references/course-copilot.md)。Agent 需要在部署机器上调用已安装的 XeLaTeX。各章文件地址与源文件 ZIP 地址都经过课程输出目录的路径转换和文件存在性检查。源文件 ZIP 收录可重新编译的项目文件。
 
@@ -196,7 +200,7 @@ export const tutoringSkills = [
 | 页面出现按钮，但发送返回未找到功能 | 服务端功能列表是否有同一 ID；独立列表是否已加入 `skillsCatalog`；服务是否已重新启动 |
 | 新功能没有路径输入框 | 是否将 ID 加入设置页 `groups` |
 | Skill 已配置但执行失败 | 原生 Agent 的登录、权限、模型额度，以及 Skill 所需程序是否可用 |
-| 回答完成，左侧没有学习资料 | 是否按本次任务指定的路径和 ID 写出结果 JSON，而不只是生成了一个 Markdown 文件 |
+| 回答完成，左侧没有学习资料 | 是否按本次任务指定的 `pending-<结果ID>.json` 路径写出展示 JSON |
 | 附件无法打开 | 文件是否真实存在于该课程的 `outputs`，`url` 是否引用了正确位置 |
 | 换电脑后路径失效 | 更新个人设置中的 Skill 路径，或使用随仓库计算的默认路径 |
 
