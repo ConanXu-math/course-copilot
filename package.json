@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "start": "node server/index.mjs"
+    "start": "node server/index.mjs",
+    "migrate": "node server/migrate-layout.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "^0.76.0",

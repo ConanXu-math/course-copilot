@@ -307,11 +307,12 @@ const TYPE_SUBDIRS = new Set(['notes', 'slides', 'quizzes', 'mindmaps', 'knowled
 // Agent 仍写入 outputs 根目录；服务把成品归入类型子目录、结果 JSON 与编译/解析产物归入 .build。
 // 已带类型或 .build 前缀的路径保持不变（幂等），避免二次分类叠成 notes/notes。
 function normalizeOutputRelative(record, relativePath) {
-  const top = relativePath.split('/').filter(Boolean)[0] || '';
+  const parts = relativePath.split('/').filter(Boolean);
+  const top = parts[0] || '';
   if (TYPE_SUBDIRS.has(top)) return relativePath;
-  const base = relativePath.split('/').pop();
+  if (/^(slides-|quiz-|mindmap-|knowledge-|video-|reading-|selection-|demo-)/.test(top) || /-(parse|source)-\d{8}$/.test(top)) return `${BUILD_DIR}/${relativePath}`;
+  const base = parts[parts.length - 1];
   if (/^pending-.*\.json$/.test(base) || /^result-.*\.json$/.test(base)) return `${BUILD_ARTIFACTS}/${relativePath}`;
-  if (/^(slides-|quiz-|mindmap-|knowledge-|video-|reading-|selection-|demo-)/.test(base) || /-(parse|source)-\d{8}$/.test(base)) return `${BUILD_DIR}/${relativePath}`;
   return classifyOutputPath(relativePath);
 }
 
