@@ -1,7 +1,8 @@
-import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
+import { chmod, copyFile, cp, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeMindmapNode } from '../shared/mindmap-text.mjs';
 import { validateKnowledgeGraph } from '../skills/knowledge-graph/scripts/validate-knowledge-graph.mjs';
@@ -121,14 +122,16 @@ function courseTitle(filename) {
 async function reserveCourse(title) {
   for (let suffix = 1; ; suffix++) {
     const folder = suffix === 1 ? title : `${title} (${suffix})`;
-    const path = await safePath('courses', folder);
-    try {
-      await mkdir(path, { mode: 0o700 });
-      for (const child of ['textbook', 'textbook/pages', 'textbook/images', 'conversations', 'outputs']) {
-        await makeDirectory(path, child);
-      }
-      return path;
-    } catch (error) { if (error.code !== 'EEXIST') throw error; }
+      const path = await safePath('courses', folder);
+      try {
+        await mkdir(path, { mode: 0o700 });
+        for (const child of ['textbook', 'textbook/pages', 'textbook/images', 'conversations', 'outputs',
+          'outputs/notes', 'outputs/slides', 'outputs/quizzes', 'outputs/mindmaps', 'outputs/knowledge-graphs',
+          'outputs/videos', 'outputs/files', `outputs/${BUILD_DIR}`, `outputs/${BUILD_ARTIFACTS}`]) {
+          await makeDirectory(path, child);
+        }
+        return path;
+      } catch (error) { if (error.code !== 'EEXIST') throw error; }
   }
 }
 
@@ -229,10 +232,12 @@ export async function importCourse(stream, filename, legacyId) {
     let handle;
     try {
       handle = await open(resolve(courseDir, 'textbook.pdf'), 'wx', 0o600);
+      const hash = createHash('sha256');
       let size = 0;
       let prefix = Buffer.alloc(0);
       for await (const chunk of stream.iterator({ destroyOnReturn: false })) {
         size += chunk.length;
+        hash.update(chunk);
         if (size > pdfLimit) fail(413, '教材超过了 100 MB，请压缩 PDF 后重试。');
         if (prefix.length < 5) {
           prefix = Buffer.concat([prefix, chunk.subarray(0, 5 - prefix.length)]);
@@ -241,10 +246,17 @@ export async function importCourse(stream, filename, legacyId) {
         await handle.writeFile(chunk);
       }
       if (prefix.length < 5) fail(400, 'PDF 文件为空或不完整。');
+      const sha256 = hash.digest('hex');
       await handle.close();
       handle = undefined;
+      // 同一本教材（按文件指纹）再次上传时复用已有课程，不新建带 (2) 的文件夹。
+      const duplicate = (await courseRecords()).find((item) => item.sha256 && item.sha256 === sha256);
+      if (duplicate) {
+        await rm(courseDir, { recursive: true, force: true });
+        return bookFrom(duplicate);
+      }
       return await writeNewCourse(courseDir, {
-        id: randomUUID(), title, filename: name, initialPage: 1, source: 'imported',
+        id: randomUUID(), title, filename: name, initialPage: 1, source: 'imported', sha256,
         ...(legacyId ? { legacyId } : {}),
       }, []);
     } catch (error) {
@@ -272,8 +284,35 @@ function outputRelative(filename) {
   return filename;
 }
 
+// 成品与机器文件分开放：人看的文档进 outputs/<类型>/，编译树、解析缓存和结果 JSON 进 outputs/.build/。
+const BUILD_DIR = '.build';
+const BUILD_ARTIFACTS = `${BUILD_DIR}/artifacts`;
+
 export function outputUrl(courseId, relativeFilename) {
   return `/api/courses/${encodeURIComponent(courseId)}/outputs/${outputRelative(relativeFilename).split('/').map(encodeURIComponent).join('/')}`;
+}
+
+// 成品相对 outputs 的路径按扩展名归入类型子目录；结果 JSON 与编译/解析产物归入 .build。
+function classifyOutputPath(relativePath) {
+  const ext = extname(relativePath.split('/').pop() || '').toLowerCase();
+  if (ext === '.pdf' || ext === '.zip') return `slides/${relativePath}`;
+  if (ext === '.mp4' || ext === '.webm' || ext === '.mp3' || ext === '.wav') return `videos/${relativePath}`;
+  if (ext === '.md' || ext === '.svg' || ext === '.png' || ext === '.jpg' || ext === '.jpeg'
+      || ext === '.webp' || ext === '.tex' || ext === '.json' || ext === '.txt' || ext === '') return `notes/${relativePath}`;
+  return `files/${relativePath}`;
+}
+
+const TYPE_SUBDIRS = new Set(['notes', 'slides', 'quizzes', 'mindmaps', 'knowledge-graphs', 'videos', 'files', BUILD_DIR]);
+
+// Agent 仍写入 outputs 根目录；服务把成品归入类型子目录、结果 JSON 与编译/解析产物归入 .build。
+// 已带类型或 .build 前缀的路径保持不变（幂等），避免二次分类叠成 notes/notes。
+function normalizeOutputRelative(record, relativePath) {
+  const top = relativePath.split('/').filter(Boolean)[0] || '';
+  if (TYPE_SUBDIRS.has(top)) return relativePath;
+  const base = relativePath.split('/').pop();
+  if (/^pending-.*\.json$/.test(base) || /^result-.*\.json$/.test(base)) return `${BUILD_ARTIFACTS}/${relativePath}`;
+  if (/^(slides-|quiz-|mindmap-|knowledge-|video-|reading-|selection-|demo-)/.test(base) || /-(parse|source)-\d{8}$/.test(base)) return `${BUILD_DIR}/${relativePath}`;
+  return classifyOutputPath(relativePath);
 }
 
 export async function resolveCourseFile(id, filename) {
@@ -370,21 +409,21 @@ function normalizeOutputUrl(record, url) {
     fail(400, '生成文件应保存在当前课程的 outputs 文件夹，并使用本地文件地址。');
   }
   const prefix = `/api/courses/${encodeURIComponent(record.id)}/outputs/`;
+  let local;
   if (url.startsWith(prefix)) {
-    let local;
     try { local = decodeURIComponent(url.slice(prefix.length)); }
     catch { fail(400, '生成文件地址的编码不正确。'); }
-    return outputUrl(record.id, local);
+  } else {
+    const outputs = resolve(record.courseDir, 'outputs');
+    local = (isAbsolute(url) ? relative(outputs, url) : url.replace(/^outputs\//, '')).split(sep).join('/');
   }
-  const outputs = resolve(record.courseDir, 'outputs');
-  const local = isAbsolute(url) ? relative(outputs, url) : url.replace(/^outputs\//, '');
-  return outputUrl(record.id, local.split(sep).join('/'));
+  return outputUrl(record.id, normalizeOutputRelative(record, local));
 }
 
 async function writeArtifact(record, artifact, options = {}) {
   if (!object(artifact) || typeof artifact.id !== 'string') fail(400, '生成结果格式不正确。');
   recordName(artifact.id);
-  const path = await safePath(record.courseDir, 'outputs', `result-${recordName(artifact.id)}.json`);
+  const path = await safePath(record.courseDir, 'outputs', BUILD_ARTIFACTS, `result-${recordName(artifact.id)}.json`);
   const snapshot = [...(generationSnapshots.get(record.id) || [])].find(items => items.has(artifact.id));
   if (options.preserveExisting) {
     const rawExisting = snapshot?.get(artifact.id) ?? await readJson(path);
@@ -397,14 +436,29 @@ async function writeArtifact(record, artifact, options = {}) {
     let local;
     try { local = decodeURIComponent(url.slice(prefix.length)); }
     catch { fail(400, '生成文件地址的编码不正确。'); }
-    const filePath = await safePath(record.courseDir, 'outputs', outputRelative(local));
-    try {
-      if (!(await stat(filePath)).isFile()) fail(400, '生成结果需要指向文件。');
-      await chmod(filePath, 0o600);
-    } catch (error) {
-      if (['ENOENT', 'ENOTDIR'].includes(error.code)) fail(400, '生成文件不存在，请先让 Coding Agent 将文件写入当前课程的 outputs 文件夹。');
-      throw error;
+    const targetRel = outputRelative(local);
+    const target = await safePath(record.courseDir, 'outputs', targetRel);
+    let present = true;
+    try { if (!(await stat(target)).isFile()) present = false; } catch { present = false; }
+    if (!present) {
+      // Agent 把成品写在 outputs 根目录；服务按类型归入子目录。
+      const rootFile = await safePath(record.courseDir, 'outputs', targetRel.split('/').pop());
+      try {
+        if ((await stat(rootFile)).isFile()) {
+          await makeDirectory(record.courseDir, 'outputs', dirname(targetRel));
+          await rename(rootFile, target);
+          present = true;
+        }
+      } catch (error) { if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error; }
     }
+    if (!present) {
+      const buildTarget = await safePath(record.courseDir, 'outputs', BUILD_DIR, targetRel);
+      try {
+        if ((await stat(buildTarget)).isFile()) { await rename(buildTarget, target); present = true; }
+      } catch (error) { if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error; }
+    }
+    if (!present) fail(400, '生成文件不存在，请先让 Coding Agent 将文件写入当前课程的 outputs 文件夹。');
+    await chmod(target, 0o600);
   }
   await writeJson(path, result);
   updateGenerationSnapshots(record.id, result);
@@ -484,7 +538,7 @@ export async function createGeneratedArtifactSaver(id, request) {
         }
       }
       if (concepts.size) {
-        conceptCatalogPath = await safePath(record.courseDir, 'outputs', 'knowledge-concepts.json');
+        conceptCatalogPath = await safePath(record.courseDir, 'outputs', BUILD_DIR, 'knowledge-concepts.json');
         await writeJson(conceptCatalogPath, { concepts: [...concepts.values()] });
       }
     }
@@ -569,7 +623,7 @@ export async function updateMindmapNode(id, artifactId, nodeId, value) {
   const filename = `result-${recordName(artifactId)}.json`;
   const record = await courseRecord(id);
   return serial(id, async () => {
-    const path = await safePath(record.courseDir, 'outputs', filename);
+    const path = await safePath(record.courseDir, 'outputs', BUILD_ARTIFACTS, filename);
     // 同 ID 生成进行中时，以生成前快照（含期间保存的补充）为准，避免读到 Agent 的临时覆盖。
     const snapshot = [...(generationSnapshots.get(id) || [])].find(items => items.has(artifactId));
     const saved = snapshot?.get(artifactId) ?? await readJson(path);
@@ -596,8 +650,8 @@ async function artifactsFor(record) {
   // Do not display an Agent's drafts or temporary overwrites during generation.
   const active = [...(generationSnapshots.get(record.id) || [])][0];
   if (active) return [...active.values()].map(artifact => structuredClone(artifact));
-  const outputs = await safePath(record.courseDir, 'outputs');
-  const files = await readdir(outputs, { withFileTypes: true });
+  const outputs = await safePath(record.courseDir, 'outputs', BUILD_ARTIFACTS);
+  const files = await readdir(outputs, { withFileTypes: true }).catch(() => []);
   const artifacts = [];
   for (const file of files) {
     if (!file.isFile() || !/^result-.+\.json$/.test(file.name)) continue;

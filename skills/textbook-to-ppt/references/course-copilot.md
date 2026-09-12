@@ -13,9 +13,7 @@
 
 ## 源文件与编译
 
-在 `outputs/slides-<本次结果ID>/` 中保存本次课件。公共设置、章节入口、小节正文和引用图片共同组成可重新编译的 LaTeX 项目。修改现有课件时，读取已有资料的源文件，围绕用户指定内容更新本次输出。
-
-应用提供本轮选择的模板及资源目录，按 [Beamer 模板](beamer-templates.md) 加载。修改已有资料时，从 `sourceUrl` 找到源码 ZIP；将课程文件 URL 对应到本轮课程 outputs 中的文件，在本轮输出目录中展开并编辑。
+课件分为过程文件与成品，分开放置。LaTeX 编译项目（公共设置、章节入口、小节正文、引用图片、`.aux/.log` 等过程文件）放在 `outputs/.build/slides-<本次结果ID>/`，从这里运行编译。编译出的各章 PDF 成品复制到 `outputs/slides/<本次结果ID>/`，源文件打包 ZIP 也放在 `outputs/slides/<本次结果ID>/sources.zip`。结果 JSON 的 `chapters[].url` 指向 `outputs/slides/<本次结果ID>/` 下的 PDF，`sourceUrl` 指向该目录的 `sources.zip`。修改现有课件时，读取已有资料的 `sourceUrl` 源码 ZIP，在 `.build` 下展开并编辑，重新编译后更新 `slides/<结果ID>/` 中的成品与 ZIP。
 
 应用会检查本机 XeLaTeX、模板宏包、Fandol 中文字体和首选数学字体，并在任务中提供引擎路径与缺失项目。依据检查结果准备编译，实际运行编译器后核对日志和 PDF。
 
@@ -34,7 +32,7 @@ xelatex -no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-erro
 
 ## 结果返回
 
-沿用应用的 `slides` 结果类型。每个已编译章节在 `chapters` 中对应一个条目，`url` 指向实际生成的 PDF；`sourceUrl` 指向整个课件项目的源文件 ZIP。单章任务也使用这套格式。路径可使用 outputs 下的绝对路径，或相对于 outputs 的路径。
+沿用应用的 `slides` 结果类型。每个已编译章节在 `chapters` 中对应一个条目，`url` 指向 `outputs/slides/<结果ID>/` 下实际生成的 PDF 成品；`sourceUrl` 指向同目录的源文件 ZIP。单章任务也使用这套格式。路径可使用 outputs 下的绝对路径，或相对于 outputs 的路径。
 
 ```json
 {
@@ -45,11 +43,11 @@ xelatex -no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-erro
   "chapters": [
     {
       "title": "第 3 章 梯度方法",
-      "url": "slides-本次结果ID/第03章-梯度方法.pdf",
+      "url": "slides/本次结果ID/第03章-梯度方法.pdf",
       "filename": "第03章-梯度方法.pdf"
     }
   ],
-  "sourceUrl": "slides-本次结果ID/sources.zip"
+  "sourceUrl": "slides/本次结果ID/sources.zip"
 }
 ```
 

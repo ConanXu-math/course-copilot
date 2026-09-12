@@ -1,6 +1,6 @@
 # 可复用教材内容
 
-完整解析的每一页保存为本课程 `outputs/textbook-content/page-N.json`，N 是 PDF 页序。它是可以重新校对更新的解析结果；再次处理时只更新本次页，保留其他页。不要改原始 PDF、阅读记录或用户笔记。
+完整解析的每一页保存为本课程 `outputs/.build/textbook-content/page-N.json`，N 是 PDF 页序。它是可以重新校对更新的解析结果；再次处理时只更新本次页，保留其他页。不要改原始 PDF、阅读记录或用户笔记。
 
 每页对象包含 `page`、`blocks`，可附 `printedPage`。每个内容块包括：
 

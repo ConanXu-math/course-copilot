@@ -70,7 +70,7 @@ node "/本Skill绝对路径/scripts/read-pages.mjs" "/本次教材路径.pdf" 8 
 保存后运行 [validate-mindmap.mjs](scripts/validate-mindmap.mjs)，用本次实际结果路径、结果 ID 和教材总页数替换参数：
 
 ```sh
-node "/本Skill绝对路径/scripts/validate-mindmap.mjs" "/本次outputs/result-ID.json" "本次结果ID" 202
+node "/本Skill绝对路径/scripts/validate-mindmap.mjs" "/本次outputs/.build/artifacts/result-ID.json" "本次结果ID" 202
 ```
 
 校验器检查展示格式、单根树结构和页码范围；它不证明概念、引用或范围正确。另行对照已读正文检查主要分支、边界与页码，再简短告知生成了什么、覆盖什么范围。若材料不完整或只完成部分阅读，明确说明；没有成功写出结果文件时，不声称已经生成。
