@@ -218,13 +218,14 @@ export default function ArtifactViewer({artifact,onPage,book,onEditNode,onQuizAc
   </section>;
 }
 
-export function MaterialsLibrary({ artifacts, onOpen, kind, book }: {
+export function MaterialsLibrary({ artifacts, onOpen, kind, excludeKinds, book }: {
   artifacts: Artifact[];
   onOpen: (artifact: Artifact) => void;
-  kind?: 'mindmap' | 'knowledge-graph';
+  kind?: Artifact['kind'];
+  excludeKinds?: Artifact['kind'][];
   book?: Book;
 }) {
-  const materialTypes = {
+  const materialTypes: Record<Artifact['kind'], { title: string; icon: typeof FileText }> = {
     quiz: { title: '练习卡片', icon: FileText },
     markdown: { title: '讲解笔记', icon: FileText },
     mindmap: { title: '思维导图', icon: Waypoints },
@@ -236,10 +237,13 @@ export function MaterialsLibrary({ artifacts, onOpen, kind, book }: {
   const category = kind ? materialTypes[kind] : null;
   const CategoryIcon = category?.icon || FolderOpen;
   const orderedArtifacts = sortGraphArtifacts(artifacts, book);
-  const visibleArtifacts = kind ? orderedArtifacts.filter(artifact => artifact.kind === kind) : orderedArtifacts;
+  const visibleArtifacts = kind ? orderedArtifacts.filter(artifact => artifact.kind === kind)
+    : excludeKinds?.length ? orderedArtifacts.filter(artifact => !excludeKinds.includes(artifact.kind)) : orderedArtifacts;
   const description = kind === 'mindmap' ? '按教材章、节顺序排列，全书、整章和整节导图分别优先。'
     : kind === 'knowledge-graph' ? '按教材章、节顺序排列，全书图谱最前，整章和整节图谱在各自范围内优先。'
-    : '思维导图、课件和讲解视频，都收在这本教材里。';
+    : kind === 'quiz' ? '按生成顺序排列，点开可作答、看提示和参考答案。'
+    : kind === 'slides' ? '按生成顺序排列，点开可预览章节 PDF 并下载源文件。'
+    : '讲解笔记、文件和视频，都收在这本教材里。';
 
   return <div className="materials-library">
     <div className="materials-heading">
@@ -260,7 +264,7 @@ export function MaterialsLibrary({ artifacts, onOpen, kind, book }: {
       <h2>{category ? `还没有${category.title}` : '你的第一份学习资料，从这里开始'}</h2>
       <p>{category ? <>在右侧的课程工具中选择“{category.title}”并生成，<br/>生成的{category.title}会保存在这里，随时回来查看。</>
         : <>在右侧选择学习工具。生成完成后，<br/>资料会自动出现在这里，随时回来查看。</>}</p>
-      {!category && <div className="empty-material-types"><span><Waypoints size={16}/>知识结构</span><span><Presentation size={16}/>章节课件</span><span><Video size={16}/>讲解视频</span></div>}
+      {!category && <div className="empty-material-types"><span><FileText size={16}/>讲解笔记</span><span><FileIcon size={16}/>文件</span><span><Video size={16}/>讲解视频</span></div>}
     </div>}
   </div>;
 }

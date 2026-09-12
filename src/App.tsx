@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookMarked, BookOpen, Bookmark, Check, ChevronDown, ChevronRight, ChevronsLeft, FileText, FolderOpen, Network, Waypoints, LibraryBig, LoaderCircle, Menu, PanelLeft, Plus, Search, Settings2, Sparkles, Upload, X, CircleHelp, History, AlertCircle } from 'lucide-react';
+import { BookMarked, BookOpen, Bookmark, Check, ChevronDown, ChevronRight, ChevronsLeft, FileText, FolderOpen, Network, Waypoints, LibraryBig, LoaderCircle, Menu, PanelLeft, Plus, Presentation, Search, Settings2, Sparkles, Upload, X, CircleHelp, History, AlertCircle } from 'lucide-react';
 import type { Artifact, Book, Chapter, ConversationInfo, Message, ReadingState, Scope, SkillId, SkillInfo } from './lib/types';
 import { getAgentStatus, getSkills, runSkill, skillsFromStatus, type AgentStatus } from './lib/skill-client';
 import { editMindmapNode, getConversation, listConversations, saveBookMetadata, savePageText, uploadBook } from './lib/storage';
@@ -12,8 +12,15 @@ import ArtifactViewer, { MaterialsLibrary } from './components/ArtifactViewer';
 import AgentConnection from './components/AgentConnection';
 import { useColumnWidths } from './components/ColumnResizers';
 
-function artifactSection(kind?: Artifact['kind']): 'materials' | 'mindmaps' | 'knowledge-graphs' {
-  return kind === 'mindmap' ? 'mindmaps' : kind === 'knowledge-graph' ? 'knowledge-graphs' : 'materials';
+type ReaderSection = 'materials' | 'mindmaps' | 'knowledge-graphs' | 'quizzes' | 'slides';
+// 独立成标签的类型不再进入「学习资料」总览。
+const sectionKinds = { mindmaps: 'mindmap', 'knowledge-graphs': 'knowledge-graph', quizzes: 'quiz', slides: 'slides' } as const;
+type SectionKind = typeof sectionKinds[keyof typeof sectionKinds];
+function artifactSection(kind?: Artifact['kind']): ReaderSection {
+  return (Object.keys(sectionKinds) as (keyof typeof sectionKinds)[]).find(key => sectionKinds[key] === kind) || 'materials';
+}
+function sectionKind(section: ReaderSection): SectionKind | undefined {
+  return section === 'materials' ? undefined : sectionKinds[section];
 }
 
 export default function App() {
@@ -37,7 +44,7 @@ export default function App() {
   const [selectedText, setSelectedText] = useState('');
   const [selectionPages, setSelectionPages] = useState<{ start: number; end: number } | null>(null);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState('textbook');
+  const [activeTab, setActiveTab] = useState<string>('textbook');
   const [contextArtifactId, setContextArtifactId] = useState<string | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(() => window.innerWidth > 960);
   const columns = useColumnWidths(outlineOpen, workspace.settings ? workspace.settings.columnWidths || {} : null, widths => { void workspace.savePreferences({ columnWidths: widths }).catch(() => {}); });
@@ -274,15 +281,17 @@ export default function App() {
         <div className="reading-tabs" aria-label="教材与学习资料">
           <button className="icon-button outline-open-button" aria-label="展开教材目录" onClick={()=>setOutlineOpen(!outlineOpen)}><PanelLeft size={17}/></button>
           <button className={`reading-tab ${activeTab==='textbook'?'active':''}`} onClick={()=>setActiveTab('textbook')}><BookOpen size={16}/>教材</button>
-          <button className={`reading-tab ${activeTab==='materials'?'active':''}`} onClick={()=>setActiveTab('materials')}><FolderOpen size={16}/>学习资料<span className="count-badge">{artifacts.length}</span></button>
+          <button className={`reading-tab ${activeTab==='materials'?'active':''}`} onClick={()=>setActiveTab('materials')}><FolderOpen size={16}/>学习资料<span className="count-badge">{artifacts.filter(item=>!Object.values(sectionKinds).includes(item.kind as SectionKind)).length}</span></button>
           <button className={`reading-tab ${activeTab==='mindmaps'?'active':''}`} onClick={()=>setActiveTab('mindmaps')}><Waypoints size={16}/>思维导图<span className="count-badge">{artifacts.filter(item=>item.kind==='mindmap').length}</span></button>
           <button className={`reading-tab ${activeTab==='knowledge-graphs'?'active':''}`} onClick={()=>setActiveTab('knowledge-graphs')}><Network size={16}/>知识图谱<span className="count-badge">{artifacts.filter(item=>item.kind==='knowledge-graph').length}</span></button>
+          <button className={`reading-tab ${activeTab==='quizzes'?'active':''}`} onClick={()=>setActiveTab('quizzes')}><FileText size={16}/>练习卡片<span className="count-badge">{artifacts.filter(item=>item.kind==='quiz').length}</span></button>
+          <button className={`reading-tab ${activeTab==='slides'?'active':''}`} onClick={()=>setActiveTab('slides')}><Presentation size={16}/>课件<span className="count-badge">{artifacts.filter(item=>item.kind==='slides').length}</span></button>
           {openTabs.map(id=>{const artifact=artifacts.find(item=>item.id===id);return artifact?<div className={`result-tab ${activeTab===id?'active':''}`} key={id}><button title={artifact.title} onClick={()=>openArtifact(artifact)}>{artifact.title}</button><button aria-label={`关闭${artifact.title}`} onClick={()=>closeTab(id)}><X size={12}/></button></div>:null;})}
           <button className={`icon-button bookmark-button ${bookmarks.includes(page)?'marked':''}`} disabled={!book} onClick={()=>{setBookmarks(current=>current.includes(page)?current.filter(number=>number!==page):[...current,page]);setToast(bookmarks.includes(page)?'已移除书签。':`已收藏第 ${page} 页。`);}} aria-label={bookmarks.includes(page)?'移除本页书签':'收藏本页'} title={bookmarks.includes(page)?'移除本页书签':'收藏本页'}><Bookmark size={17} fill={bookmarks.includes(page)?'currentColor':'none'}/></button>
         </div>
         {book ? <>
           <div className={`reader-mount ${activeTab==='textbook'?'':'hidden'}`}><TextbookReader book={book} page={page} navigationId={pageNavigationId} onPageChange={goToPage} onVisiblePageChange={visiblePageChanged} onDocumentReady={documentReady} onTextChange={textReady} onSelectionChange={selectionReady}/></div>
-          {(activeTab==='materials' || activeTab==='mindmaps' || activeTab==='knowledge-graphs') && <MaterialsLibrary artifacts={artifacts} kind={activeTab==='mindmaps'?'mindmap':activeTab==='knowledge-graphs'?'knowledge-graph':undefined} book={book} onOpen={openArtifact}/>}
+          {(['materials','mindmaps','knowledge-graphs','quizzes','slides'] as ReaderSection[]).includes(activeTab as ReaderSection) && <MaterialsLibrary artifacts={artifacts} kind={sectionKind(activeTab as ReaderSection)} excludeKinds={activeTab==='materials'?Object.values(sectionKinds):undefined} book={book} onOpen={openArtifact}/>}
           {activeArtifact && <ArtifactViewer key={activeArtifact.id} artifact={activeArtifact} onPage={goToPage} book={book} onQuizAction={busy || workspace.switching || moving ? undefined : (question, answer, action) => {
             setContextArtifactId(activeArtifact.id);
             const prompt = action === 'feedback'
