@@ -118,6 +118,7 @@ export interface SkillRequest {
   knowledgeGraphDetail?: KnowledgeGraphDetail;
   templateId?: string;
   artifact?: Artifact;
+  referenceIds?: string[];
   history: { role: 'user' | 'assistant'; content: string }[];
 }
 
@@ -152,6 +153,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  references?: Pick<CourseReference, 'id' | 'title' | 'url'>[];
   skillId?: SkillId;
   status?: 'running' | 'done' | 'error' | 'stopped';
   progress?: string;

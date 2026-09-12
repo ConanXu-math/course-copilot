@@ -11,8 +11,9 @@ function fileSize(bytes: number) {
 }
 const message = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试。';
 
-export default function CourseReferences({ book, busy, onWorkingChange }: {
+export default function CourseReferences({ book, busy, onWorkingChange, selected, onSelect, onAsk }: {
   book: Book; busy: boolean; onWorkingChange: (working: boolean) => void;
+  selected: CourseReference[]; onSelect: (items: CourseReference[]) => void; onAsk: () => void;
 }) {
   const [items, setItems] = useState<CourseReference[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +68,7 @@ export default function CourseReferences({ book, busy, onWorkingChange }: {
     try {
       const updated = await updateReference(book.id, id, { title, description });
       setItems(current => current.map(item => item.id === id ? updated : item));
+      onSelect(selected.map(item => item.id === id ? updated : item));
       setEditing(null); setNotice('资料说明已保存。');
     } catch (error) { setError(message(error)); }
     finally { finish(); }
@@ -76,6 +78,7 @@ export default function CourseReferences({ book, busy, onWorkingChange }: {
     try {
       await deleteReference(book.id, id);
       setItems(current => current.filter(item => item.id !== id));
+      onSelect(selected.filter(item => item.id !== id));
       setDeleting(null); setNotice('辅助资料已删除。');
     } catch (error) { setError(message(error)); }
     finally { finish(); }
@@ -87,11 +90,13 @@ export default function CourseReferences({ book, busy, onWorkingChange }: {
       <input ref={input} type="file" multiple hidden accept=".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp" onChange={event => void upload(Array.from(event.target.files || []))}/>
     </div>
     <p className="references-formats">支持 PDF、TXT、Markdown、DOCX、PPTX、PNG、JPEG、WebP，可一次选择多份。</p>
+    <div className="references-question"><span>已选 {selected.length} 份资料</span><button className="primary-button" disabled={disabled || !selected.length} onClick={onAsk}>结合这些资料提问</button>{selected.length > 0 && <button className="text-button" disabled={disabled} onClick={() => onSelect([])}>清空选择</button>}</div>
     {error && <div className="references-error" role="alert"><AlertCircle size={17}/><span>{error}</span></div>}
     {notice && <p className="references-notice" role="status">{notice}</p>}
     <div className="references-summary"><span>{loading ? '正在读取资料…' : `${items.length} 份资料`}</span><button className="text-button" disabled={disabled} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={14}/>刷新</button></div>
     {!loading && !items.length && !error && <div className="references-empty"><FileText size={32}/><h2>收好课程的参考材料</h2><p>添加老师的讲义、补充阅读或习题解答，并用说明标记章节和用途。</p></div>}
     <div className="references-list">{items.map(item => <article className="reference-card" key={item.id}>
+      <label className="reference-select"><input type="checkbox" checked={selected.some(reference => reference.id === item.id)} disabled={disabled || (selected.length >= 50 && !selected.some(reference => reference.id === item.id))} onChange={event => onSelect(event.target.checked ? [...selected, item] : selected.filter(reference => reference.id !== item.id))}/>选择《{item.title}》用于提问</label>
       <div className="reference-details"><span className="reference-format">{item.format.toUpperCase()}</span><h2>{item.title}</h2><p className="reference-meta">{item.filename} · {fileSize(item.size)} · {new Date(item.createdAt).toLocaleDateString('zh-CN')}</p>
         {item.description && <p className="reference-description">{item.description}</p>}
       </div>

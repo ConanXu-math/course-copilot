@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, BookOpen, Check, ChevronDown, ClipboardList, CornerDownLeft, FileSliders, FileText, MessageCircle, Network, Plus, Quote, Sparkles, Square, Video, Waypoints, X, LoaderCircle, ArrowUpRight, AlertCircle, History } from 'lucide-react';
-import type { Artifact, Book, Chapter, KnowledgeGraphDetail, Message, Scope, SkillId, SkillInfo } from '../lib/types';
+import type { Artifact, Book, Chapter, CourseReference, KnowledgeGraphDetail, Message, Scope, SkillId, SkillInfo } from '../lib/types';
 import Markdown from './Markdown';
 import './slide-template-picker.css';
 
@@ -16,6 +16,7 @@ const tools = [
 ] as const;
 
 interface Props {
+  references: CourseReference[]; referenceQuestionId: number; onRemoveReference: (id: string) => void;
   book: Book; page: number; chapter?: Chapter; selectedText: string; onClearSelection: () => void;
   contextArtifact?: Artifact; onClearArtifact: () => void;
   skills: SkillInfo[]; messages: Message[]; busy: boolean; running: boolean; onSend: (id: SkillId, prompt: string, scope: Scope, knowledgeGraphDetail?: KnowledgeGraphDetail, templateId?: string) => void;
@@ -38,6 +39,13 @@ export default function CopilotPanel(props: Props) {
   const structureScope = activeSkill === 'mindmap' || activeSkill === 'knowledge-graph';
   const currentScope = structureScope && scope === 'page' ? 'section'
     : !structureScope && scope === 'section' ? 'page' : scope;
+  const textbookTask = ['slides', 'mindmap', 'knowledge-graph', 'video'].includes(activeSkill)
+    || ['slides', 'mindmap', 'knowledge-graph', 'video'].includes(contextArtifact?.kind || '');
+
+  useEffect(() => {
+    if (!props.referenceQuestionId) return;
+    setActiveSkill('chat'); setScope('page'); setToolsOpen(false); input.current?.focus();
+  }, [props.referenceQuestionId]);
 
   useEffect(() => { if (selectedText) setScope('selection'); else setScope(current => current === 'selection' ? 'page' : current); }, [selectedText]);
   useEffect(() => {
@@ -92,6 +100,7 @@ export default function CopilotPanel(props: Props) {
         </div>
       </div> : <div className="messages" aria-live="polite">{messages.map(message => <article key={message.id} className={`message message-${message.role}`}>
         {message.role === 'assistant' && <div className="message-name"><Sparkles size={14}/> Copilot</div>}
+        {message.references?.length ? <div className="message-references">{message.references.map(reference => <a key={reference.id} href={reference.url} target="_blank" rel="noreferrer"><FileText size={12}/>{reference.title}</a>)}</div> : null}
         {message.content && <Markdown book={book}>{message.content}</Markdown>}
         {message.status === 'running' && <div className="message-progress"><LoaderCircle size={14} className="spin"/>{message.progress || '正在处理…'}</div>}
         {(message.status === 'error' || message.status === 'stopped') && <div className="message-error"><AlertCircle size={15}/><span>{message.progress || '暂时无法完成，请稍后重试。'}</span></div>}
@@ -101,6 +110,7 @@ export default function CopilotPanel(props: Props) {
     </div>
 
     <div className="composer-area">
+      {props.references.length > 0 && <div className="composer-references" aria-label="本轮选中的资料"><span>{textbookTask ? '当前任务依据主教材生成' : `本轮参考 ${props.references.length} 份资料`}</span>{!textbookTask && props.references.map(reference => <div key={reference.id}><FileText size={13}/><span title={reference.title}>{reference.title}</span><button className="icon-button" disabled={busy} aria-label={`移除资料 ${reference.title}`} onClick={() => props.onRemoveReference(reference.id)}><X size={13}/></button></div>)}</div>}
       {contextArtifact && <div className="selection-context artifact-context"><FileSliders size={14}/><span title={contextArtifact.title}>正在讨论：{contextArtifact.title}</span><button className="icon-button" onClick={props.onClearArtifact} aria-label="清除资料上下文"><X size={14}/></button></div>}
       {selectedText && <div className="selection-context"><Quote size={14}/><span>{selectedText}</span><button className="icon-button" onClick={props.onClearSelection} aria-label="清除选中内容"><X size={14}/></button></div>}
       <div className="composer">

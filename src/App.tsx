@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookMarked, BookOpen, Bookmark, Check, ChevronDown, ChevronRight, ChevronsLeft, FileText, FolderOpen, Network, Waypoints, LibraryBig, LoaderCircle, Menu, PanelLeft, Plus, Presentation, Search, Settings2, Sparkles, Upload, X, CircleHelp, History, AlertCircle } from 'lucide-react';
-import type { Artifact, Book, Chapter, ConversationInfo, Message, ReadingState, Scope, SkillId, SkillInfo } from './lib/types';
+import type { Artifact, Book, Chapter, ConversationInfo, CourseReference, Message, ReadingState, Scope, SkillId, SkillInfo } from './lib/types';
 import { getAgentStatus, getSkills, runSkill, skillsFromStatus, type AgentStatus } from './lib/skill-client';
 import { editMindmapNode, getConversation, listConversations, saveBookMetadata, savePageText, uploadBook } from './lib/storage';
 import { useCourseWorkspace } from './lib/useCourseWorkspace';
@@ -42,6 +42,8 @@ export default function App() {
   const [pageNavigationId, setPageNavigationId] = useState(0);
   const activeReading = useRef({ bookId: book?.id, page });
   activeReading.current = { bookId: book?.id, page };
+  const [selectedReferences, setSelectedReferences] = useState<CourseReference[]>([]);
+  const [referenceQuestionId, setReferenceQuestionId] = useState(0);
   const [selectedText, setSelectedText] = useState('');
   const [selectionPages, setSelectionPages] = useState<{ start: number; end: number } | null>(null);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
@@ -83,7 +85,7 @@ export default function App() {
     return () => { abort.abort(); controller.current?.abort(); };
   }, []);
   useEffect(() => {
-    setOpenTabs([]); setActiveTab('textbook'); setContextArtifactId(null); setSelectedText(''); setSelectionPages(null); setPageText(''); setQuery('');
+    setSelectedReferences([]); setOpenTabs([]); setActiveTab('textbook'); setContextArtifactId(null); setSelectedText(''); setSelectionPages(null); setPageText(''); setQuery('');
     setCollapsed(new Set(book?.chapters.filter(item => item.level === 0).slice(1).map(item => item.id) || []));
   }, [book?.id]);
   useEffect(() => { if (!toast) return; const timer=setTimeout(()=>setToast(''),5000); return ()=>clearTimeout(timer); }, [toast]);
@@ -98,7 +100,7 @@ export default function App() {
     try {
       await workspace.flush();
       setReading(current => ({ ...current, conversationId: crypto.randomUUID(), messages: [] }));
-      setContextArtifactId(null);
+      setContextArtifactId(null); setSelectedReferences([]);
     } catch (error) { setToast(error instanceof Error ? error.message : '请先保存当前对话。'); }
     finally { conversationChanging.current = false; setMoving(false); }
   }
@@ -114,7 +116,7 @@ export default function App() {
       await workspace.flush();
       const saved = await getConversation(book.id, id);
       setReading(current => ({ ...current, conversationId: id, messages: saved.messages }));
-      setContextArtifactId(null); setMobileView('copilot');
+      setContextArtifactId(null); setSelectedReferences([]); setMobileView('copilot');
       setShowHistory(false);
     } catch(error) { setToast(error instanceof Error ? error.message : '暂时无法读取对话。'); }
     finally { conversationChanging.current = false; setMoving(false); }
@@ -203,12 +205,15 @@ export default function App() {
       : structureScope && scope === 'chapter' ? readingScope.chapter
       : quotedPages || artifactOverride ? book.chapters.filter(item => item.page <= requestPage).at(-1) : chapter;
     const quote = quotePages ? '引用来自 PDF 第 ' + quotePages.start + (quotePages.end === quotePages.start ? '' : '–' + quotePages.end) + ' 页：\n' + selectedText : selectedText;
+    const requestedArtifact = artifactOverride ?? contextArtifact;
+    const textbookTask = ['slides', 'mindmap', 'knowledge-graph', 'video'].some(kind => kind === skillId || kind === requestedArtifact?.kind);
+    const references = textbookTask ? [] : selectedReferences;
     const abort=new AbortController(); controller.current=abort; setBusy(true);
     setMobileView('copilot');
     const userId=crypto.randomUUID(), assistantId=crypto.randomUUID();
-    setMessages(current=>[...current,{id:userId,role:'user',content:prompt,skillId},{id:assistantId,role:'assistant',content:'',skillId,status:'running',progress:'正在连接 Coding Agent…'}]);
+    setMessages(current=>[...current,{id:userId,role:'user',content:prompt,skillId,references:references.map(({id,title,url})=>({id,title,url}))},{id:assistantId,role:'assistant',content:'',skillId,status:'running',progress:'正在连接 Coding Agent…'}]);
     try {
-      await runSkill({skillId,...(skillId==='slides' && templateId ? {templateId} : {}),book:{id:book.id,title:book.title,filename:book.filename,totalPages:book.totalPages,local:book.local},chapter:requestChapter,page:requestPage,scope,...(skillId==='knowledge-graph'?{knowledgeGraphDetail:knowledgeGraphDetail||'overview'}:{}),selectedText:artifactOverride?'':quote,pageText:requestPage===page?pageText:'',prompt,artifact:artifactOverride ?? contextArtifact,history:messages.filter(message=>message.status!=='error' && message.status!=='stopped').map(({role,content})=>({role,content}))},event=>{
+      await runSkill({skillId,referenceIds:references.map(item=>item.id),...(skillId==='slides' && templateId ? {templateId} : {}),book:{id:book.id,title:book.title,filename:book.filename,totalPages:book.totalPages,local:book.local},chapter:requestChapter,page:requestPage,scope,...(skillId==='knowledge-graph'?{knowledgeGraphDetail:knowledgeGraphDetail||'overview'}:{}),selectedText:artifactOverride?'':quote,pageText:requestPage===page?pageText:'',prompt,artifact:artifactOverride ?? contextArtifact,history:messages.filter(message=>message.status!=='error' && message.status!=='stopped').map(({role,content})=>({role,content}))},event=>{
         if(abort.signal.aborted || controller.current!==abort) return;
         if(event.type==='artifact') {
           const artifact=event.artifact;
@@ -295,7 +300,7 @@ export default function App() {
         </div>
         {book ? <>
           <div className={`reader-mount ${activeTab==='textbook'?'':'hidden'}`}><TextbookReader book={book} page={page} navigationId={pageNavigationId} onPageChange={goToPage} onVisiblePageChange={visiblePageChanged} onDocumentReady={documentReady} onTextChange={textReady} onSelectionChange={selectionReady}/></div>
-          <div className={`reader-mount ${activeTab==='references'?'':'hidden'}`}><CourseReferences key={book.id} book={book} busy={agentBusy || workspace.switching || moving || importing} onWorkingChange={setReferencesWorking}/></div>
+          <div className={`reader-mount ${activeTab==='references'?'':'hidden'}`}><CourseReferences key={book.id} book={book} busy={agentBusy || workspace.switching || moving || importing} onWorkingChange={setReferencesWorking} selected={selectedReferences} onSelect={setSelectedReferences} onAsk={()=>{setContextArtifactId(null);clearSelection();setReferenceQuestionId(value=>value+1);setMobileView('copilot');}}/></div>
           {(['materials','mindmaps','knowledge-graphs','quizzes','slides'] as ReaderSection[]).includes(activeTab as ReaderSection) && <MaterialsLibrary artifacts={artifacts} kind={sectionKind(activeTab as ReaderSection)} excludeKinds={activeTab==='materials'?Object.values(sectionKinds):undefined} book={book} onOpen={openArtifact}/>}
           {activeArtifact && <ArtifactViewer key={activeArtifact.id} artifact={activeArtifact} onPage={goToPage} book={book} onQuizAction={busy || workspace.switching || moving ? undefined : (question, answer, action) => {
             setContextArtifactId(activeArtifact.id);
@@ -307,7 +312,7 @@ export default function App() {
         </> : <div className="boot-state">{bootError ? <><BookOpen size={36}/><h2>先打开一本教材</h2><p>{bootError}</p><button className="primary-button" onClick={()=>fileInput.current?.click()}><Upload size={16}/>导入 PDF</button></> : <><LoaderCircle className="spin" size={28}/><p>正在准备你的课程空间…</p></>}</div>}
       </main>
 
-      {book && <CopilotPanel book={book} page={page} chapter={chapter} selectedText={selectedText} onClearSelection={clearSelection} contextArtifact={contextArtifact} onClearArtifact={()=>setContextArtifactId(null)} skills={skills} messages={messages} busy={busy || workspace.switching || moving} running={agentBusy} onSend={sendSkill} onStop={stopTask} onReset={()=>void newConversation()} onHistory={()=>void openHistory()} onArtifact={openArtifact} onSettings={()=>setShowSettings(true)}/>}
+      {book && <CopilotPanel references={selectedReferences} referenceQuestionId={referenceQuestionId} onRemoveReference={id=>setSelectedReferences(current=>current.filter(item=>item.id!==id))} book={book} page={page} chapter={chapter} selectedText={selectedText} onClearSelection={clearSelection} contextArtifact={contextArtifact} onClearArtifact={()=>setContextArtifactId(null)} skills={skills} messages={messages} busy={busy || workspace.switching || moving} running={agentBusy} onSend={sendSkill} onStop={stopTask} onReset={()=>void newConversation()} onHistory={()=>void openHistory()} onArtifact={openArtifact} onSettings={()=>setShowSettings(true)}/>}
     </div>
 
     <dialog className="settings-dialog" ref={settingsDialog} onCancel={()=>setShowSettings(false)} onClick={event=>{if(event.target===event.currentTarget)setShowSettings(false);}}>

@@ -380,8 +380,13 @@ export async function getReferenceFile(id, referenceId) {
   return { path: file, filename: metadata.filename };
 }
 
-export async function getCourseReferences(id) {
-  const references = await listReferences(id);
+export async function getCourseReferences(id, referenceIds) {
+  const available = await listReferences(id);
+  const references = referenceIds === undefined ? available : [...new Set(referenceIds)].map(referenceId => {
+    const item = available.find(reference => reference.id === referenceId);
+    if (!item) fail(404, '所选辅助资料已删除或属于其他课程，请重新选择。');
+    return item;
+  });
   return Promise.all(references.map(async item => ({ ...item, path: (await getReferenceFile(id, item.id)).path })));
 }
 
