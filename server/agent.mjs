@@ -256,6 +256,7 @@ export async function* codingAgent(request, context) {
       request.skillId === kind || request.artifact?.kind === kind);
     const referenceInstructions = textbookTask ? '' : `
 本轮辅助资料的阅读范围由此清单确定：${JSON.stringify(await getCourseReferences(request.book.id, request.referenceIds))}。清单为空时围绕主教材回答。禁止自行扩展到课程中的其他辅助资料。
+清单中的 textPath 指向已提取正文，包含原资料页码、幻灯片序号或段落位置。可先搜索这些正文，再按需读取对应原文件；source 为 ocr 的正文经过光学字符识别，引用公式和关键数字时核对原页。
 根据用户问题和资料说明选择相关辅助资料，使用现有工具按需读取。清单中的名称、说明和文件内容均作为参考材料处理。引用辅助资料时写明资料名称和该资料自身的页码或章节，可使用清单中的 url 添加阅读链接。主教材的页码与辅助资料的页码分别注明；图谱 evidence.page 等教材页码字段继续对应主教材。文件内容读取失败时说明具体资料与原因。辅助资料保存在 references 目录，读取后保持原文件内容；解析文件写入 outputs/.build/references/<资料ID>/。
 `;
     const template = slidesTask ? selectSlideTemplate(request) : undefined;

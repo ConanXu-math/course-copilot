@@ -5,6 +5,7 @@ import {
   getStorageInfo, updateSettings, listCourses, importCourse, getState, saveState,
   updateTextbook, savePage, resolveCourseFile, listConversations, getConversation, migrateState,
   updateMindmapNode, listReferences, importReference, updateReference, deleteReference, getReferenceFile,
+  startReferenceExtraction, searchReferences,
 } from './course-store.mjs';
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
@@ -107,6 +108,21 @@ export async function handleCourseApi(req, res) {
         json(res, 201, await importCourse(req, filename, url.searchParams.get('legacyId') ?? undefined));
       }
     } else {
+      const searchMatch = /^\/api\/courses\/([^/]+)\/references\/search$/.exec(path);
+      if (searchMatch) {
+        method(req, 'GET');
+        json(res, 200, await searchReferences(decode(searchMatch[1]), url.searchParams.get('q')));
+        return true;
+      }
+      const textMatch = /^\/api\/courses\/([^/]+)\/references\/([^/]+)\/text$/.exec(path);
+      if (textMatch) {
+        method(req, 'POST');
+        const value = await body(req);
+        if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => key !== 'ocr')
+            || value.ocr !== undefined && typeof value.ocr !== 'boolean') fail(400, '正文提取参数无效。');
+        json(res, 202, await startReferenceExtraction(decode(textMatch[1]), decode(textMatch[2]), value.ocr === true));
+        return true;
+      }
       const referenceMatch = /^\/api\/courses\/([^/]+)\/references(?:\/([^/]+)(\/file)?)?$/.exec(path);
       if (referenceMatch) {
         const id = decode(referenceMatch[1]);
@@ -118,7 +134,8 @@ export async function handleCourseApi(req, res) {
             try {
               if (Number(req.headers['content-length']) > 100 * 1024 * 1024) fail(413, '单份辅助资料最大 100 MiB（104857600 字节）。');
               const filename = decode(typeof req.headers['x-filename'] === 'string' ? req.headers['x-filename'] : '');
-              json(res, 201, await importReference(id, req, filename));
+              const reference = await importReference(id, req, filename);
+              json(res, 201, await startReferenceExtraction(id, reference.id));
             } catch (error) { req.resume(); throw error; }
           }
         } else if (referenceMatch[3]) {

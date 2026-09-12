@@ -7,12 +7,15 @@ import { fileURLToPath } from 'node:url';
 import { normalizeMindmapNode } from '../shared/mindmap-text.mjs';
 import { validateKnowledgeGraph } from '../skills/knowledge-graph/scripts/validate-knowledge-graph.mjs';
 import { slideTemplates } from './slide-templates.mjs';
+import { extractReferenceText, searchReferenceText } from './reference-text.mjs';
 
 const configuredHome = process.env.COURSE_COPILOT_HOME || resolve(homedir(), '.course-copilot');
 let directory = resolve(configuredHome.replace(/^~(?=\/|$)/, homedir()));
 let initialization;
 const writes = new Map();
 const generationSnapshots = new Map();
+const referenceExtractions = new Map();
+let referenceExtractionQueue = Promise.resolve();
 const pdfLimit = 100 * 1024 * 1024;
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
@@ -283,7 +286,10 @@ function referenceDirectoryName(id) {
   return id;
 }
 function referenceInfo(courseId, metadata) {
-  return { ...metadata, url: `/api/courses/${encodeURIComponent(courseId)}/references/${metadata.id}/file` };
+  const job = referenceExtractions.get(`${courseId}/${metadata.id}`);
+  const textIndex = job ? { status: job.status, processedPages: job.processedPages, totalPages: job.totalPages }
+    : metadata.textIndex || { status: 'pending' };
+  return { ...metadata, textIndex, url: `/api/courses/${encodeURIComponent(courseId)}/references/${metadata.id}/file` };
 }
 async function referenceRecord(record, referenceId) {
   const path = await safePath(record.courseDir, 'references', referenceDirectoryName(referenceId));
@@ -367,6 +373,7 @@ export async function deleteReference(id, referenceId) {
   return serial(id, async () => {
     if (generationSnapshots.get(id)?.size) fail(409, 'Agent 正在使用这门课程的资料，请在任务结束后删除。');
     const { path } = await referenceRecord(record, referenceId);
+    referenceExtractions.get(`${id}/${referenceId}`)?.controller.abort();
     await rm(path, { recursive: true });
     return { deleted: true };
   });
@@ -387,7 +394,73 @@ export async function getCourseReferences(id, referenceIds) {
     if (!item) fail(404, '所选辅助资料已删除或属于其他课程，请重新选择。');
     return item;
   });
-  return Promise.all(references.map(async item => ({ ...item, path: (await getReferenceFile(id, item.id)).path })));
+  return Promise.all(references.map(async item => {
+    const file = await getReferenceFile(id, item.id);
+    const textPath = await safePath(dirname(file.path), 'text.json');
+    return { ...item, path: file.path, ...((await stat(textPath).catch(() => null))?.isFile() ? { textPath } : {}) };
+  }));
+}
+
+export async function startReferenceExtraction(id, referenceId, ocr = false) {
+  const record = await courseRecord(id);
+  return serial(id, async () => {
+    const { path, metadata } = await referenceRecord(record, referenceId);
+    const key = `${id}/${referenceId}`;
+    if (referenceExtractions.has(key)) return referenceInfo(id, metadata);
+    const job = { status: 'queued', processedPages: 0, totalPages: 0, controller: new AbortController() };
+    referenceExtractions.set(key, job);
+    const run = async () => {
+      const signal = job.controller.signal;
+      try {
+        signal.throwIfAborted();
+        job.status = 'processing';
+        const file = await safePath(path, metadata.filename);
+        const index = await extractReferenceText({ path: file, format: metadata.format, ocr, signal,
+          onProgress: (processed, total) => { job.processedPages = processed; job.totalPages = total; } });
+        await serial(id, async () => {
+          signal.throwIfAborted();
+          const current = await referenceRecord(record, referenceId);
+          await writeJson(resolve(current.path, 'text.json'), index);
+          await writeJson(resolve(current.path, 'metadata.json'), { ...current.metadata,
+            textIndex: { status: 'ready', totalPages: index.pages.length, needsOcr: index.needsOcr,
+              message: index.warnings.slice(0, 5).join(' '), extractedAt: index.extractedAt } });
+        });
+      } catch (error) {
+        if (!signal.aborted) await serial(id, async () => {
+          if (signal.aborted) return;
+          const current = await referenceRecord(record, referenceId);
+          await writeJson(resolve(current.path, 'metadata.json'), { ...current.metadata,
+            textIndex: { ...current.metadata.textIndex, status: 'error', message: error.message } });
+        }).catch(error => console.error('辅助资料提取结果保存失败：', error.message));
+      } finally { if (referenceExtractions.get(key) === job) referenceExtractions.delete(key); }
+    };
+    referenceExtractionQueue = referenceExtractionQueue.catch(() => {}).then(run);
+    return referenceInfo(id, metadata);
+  });
+}
+
+export async function searchReferences(id, query) {
+  if (typeof query !== 'string' || !query.trim() || query.length > 160) fail(400, '请输入 1 至 160 个字符的搜索文字。');
+  const record = await courseRecord(id);
+  const references = await listReferences(id);
+  const hits = [];
+  let total = 0, indexing = false, indexedDocuments = 0;
+  for (const reference of references) {
+    if (reference.textIndex.status === 'pending') {
+      await startReferenceExtraction(id, reference.id); indexing = true;
+    } else if (['queued', 'processing'].includes(reference.textIndex.status)) indexing = true;
+    const { path } = await referenceRecord(record, reference.id);
+    const index = await readJson(resolve(path, 'text.json'));
+    if (!index) continue;
+    indexedDocuments++;
+    for (const hit of searchReferenceText(index, query)) {
+      total++;
+      if (hits.length < 100) hits.push({ ...hit, referenceId: reference.id, title: reference.title,
+        location: hit.slide ? `第 ${hit.slide} 张幻灯片` : hit.paragraph ? `第 ${hit.paragraph} 段` : reference.format === 'pdf' ? `PDF 第 ${hit.page} 页` : '图片',
+        url: reference.url + (reference.format === 'pdf' && hit.page ? `#page=${hit.page}` : '') });
+    }
+  }
+  return { query: query.trim(), hits, total, indexing, indexedDocuments, totalDocuments: references.length };
 }
 
 function outputRelative(filename) {

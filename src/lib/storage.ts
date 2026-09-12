@@ -1,4 +1,4 @@
-import type { Artifact, Book, Chapter, ConversationInfo, CourseReference, Message, PersonalSettings, ReadingState, StorageInfo } from './types';
+import type { Artifact, Book, Chapter, ConversationInfo, CourseReference, Message, PersonalSettings, ReadingState, ReferenceSearchResult, StorageInfo } from './types';
 
 const coursePath = (courseId: string) => `/api/courses/${encodeURIComponent(courseId)}`;
 
@@ -41,6 +41,14 @@ export function getCourses(signal?: AbortSignal): Promise<Book[]> {
 
 export function listReferences(courseId: string, signal?: AbortSignal): Promise<CourseReference[]> {
   return getJson(`${coursePath(courseId)}/references`, { signal });
+}
+
+export function extractReferenceText(courseId: string, id: string, ocr = false): Promise<CourseReference> {
+  return getJson(`${coursePath(courseId)}/references/${encodeURIComponent(id)}/text`, { method: 'POST', ...jsonBody({ ocr }) });
+}
+
+export function searchReferences(courseId: string, query: string, signal?: AbortSignal): Promise<ReferenceSearchResult> {
+  return getJson(`${coursePath(courseId)}/references/search?q=${encodeURIComponent(query)}`, { signal });
 }
 
 export function uploadReference(courseId: string, file: File): Promise<CourseReference> {

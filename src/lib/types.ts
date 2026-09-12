@@ -83,6 +83,13 @@ export interface CourseReference {
   format: string;
   createdAt: string;
   url: string;
+  textIndex?: { status: 'pending' | 'queued' | 'processing' | 'ready' | 'error'; processedPages?: number; totalPages?: number; needsOcr?: boolean; message?: string; extractedAt?: string };
+}
+
+export interface ReferenceSearchResult {
+  query: string; total: number; indexing: boolean; indexedDocuments: number; totalDocuments: number;
+  hits: { referenceId: string; title: string; url: string; location: string; page?: number; slide?: number; paragraph?: number;
+    source: 'text' | 'ocr'; snippet: string; matchStart: number; matchLength: number }[];
 }
 
 export interface StorageInfo { directory: string; settings: PersonalSettings }
