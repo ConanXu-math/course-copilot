@@ -70,17 +70,24 @@ npm start
 ~/.course-copilot/
 ├── settings.json                   # 当前课程、栏目宽度、Agent 与 Skill 设置
 └── courses/
-    └── 面向机器学习的最优化方法/
+    └── 面向机器学习的最优化方法/      # 目录名 = 书名；同一本书（sha256 相同）只保留一个
         ├── textbook.pdf            # 原始教材
         ├── textbook/
-        │   ├── course.json         # 教材名称、页数
+        │   ├── course.json         # 教材名称、页数、sha256 文件指纹
         │   ├── outline.json        # 章节目录
         │   ├── pages/              # 已阅读页面的正文
-        │   └── images/             # 教材图片预留目录；当前解析 Demo 写入 outputs
+        │   └── images/             # 教材图片
         ├── reading.json            # 页码、书签、笔记数据、当前对话
         ├── conversations/          # 每段对话分别保存
-        └── outputs/                # 图谱、课件、视频和结果描述
+        └── outputs/                # 成品按类型分列；点开只看到文档
+            ├── notes/              # 讲解、笔记、图片（.md/.svg/.png）
+            ├── slides/             # 课件 PDF 与源文件 ZIP
+            ├── quizzes/  mindmaps/  knowledge-graphs/  videos/  files/
+            └── .build/             # 机器文件（默认隐藏）：结果 JSON、LaTeX 编译树、解析缓存
+                └── artifacts/      # result-<ID>.json
 ```
+
+`outputs` 顶层只放给人看的成品，按类型分子目录；编译过程文件、解析中间产物和结果 JSON 都收进 `.build/`。旧布局可用 `npm run migrate`（先整目录备份，`--dry-run` 可预览）一次性整理成新结构并合并重复书。
 
 启动时可指定其他位置：
 
@@ -128,7 +135,7 @@ PDF 页码范围读取共用 [`skills/mindmap/scripts/read-pages.mjs`](skills/mi
 
 「工作区设置 → 课件编译环境」显示 XeLaTeX 路径、版本、缺失宏包和字体情况，可点击「重新检查」。环境信息也随课件任务传给 Agent。检查通过表示所列程序和资源能够被找到，最终 PDF 的编译与页面检查由生成任务完成。
 
-生成结果保存在当前课程的 `outputs/slides-<结果ID>/`。学习资料中的课件提供章节选择、PDF 预览、PDF 下载和 LaTeX 源文件 ZIP 下载。源文件包含公共排版设置、各章编译入口、小节正文及引用图片，支持教师选取小节后重新组合编译。PDF 预览使用浏览器的 PDF 阅读器，工具栏也提供独立打开文件的链接。
+课件成品（各章 PDF 与源文件 ZIP）保存在当前课程的 `outputs/slides/<结果ID>/`；LaTeX 编译项目与 `.aux/.log` 等过程文件放在 `outputs/.build/slides-<结果ID>/`。学习资料中的课件提供章节选择、PDF 预览、PDF 下载和 LaTeX 源文件 ZIP 下载。源文件包含公共排版设置、各章编译入口、小节正文及引用图片，支持教师选取小节后重新组合编译。PDF 预览使用浏览器的 PDF 阅读器，工具栏也提供独立打开文件的链接。
 
 默认 Skill 路径由项目位置计算。个人设置中已有的路径配置继续生效；曾保存过空路径的用户，可在「工作区设置 → 接入 Skill → 生成课件」填入项目中 `skills/textbook-to-ppt/SKILL.md` 的完整路径。
 
@@ -235,7 +242,7 @@ ACP 模式将公共教学要求、教材上下文与本轮要求交给同一个�
 | `done` | 无 | 任务完成 |
 | `error` | `message` | 显示失败原因 |
 
-每次需要生成资料时，接入层会把一个 `outputs/pending-<结果ID>.json` 的完整路径告诉所选 Agent。Agent 将展示用 JSON 写入该待检查文件，并把图片、PDF 等媒体文件写入同一 `outputs` 目录。服务校验通过后保存为 `result-<结果ID>.json` 并发送 `artifact` 事件；校验失败时保留已有资料。普通问答不要求生成文件。继续修改时会生成新的资料，原资料保留。
+每次需要生成资料时，接入层会把一个待检查 JSON 的完整路径告诉所选 Agent。Agent 将展示用 JSON 写入该文件，并把图片、PDF 等成品写入 `outputs` 下对应类型子目录（讲解笔记进 `notes/`、课件进 `slides/` 等），编译与解析过程文件写入 `outputs/.build/`。服务校验通过后把结果保存为 `outputs/.build/artifacts/result-<结果ID>.json` 并发送 `artifact` 事件；校验失败时保留已有资料。普通问答不要求生成文件。继续修改时会生成新的资料，原资料保留。
 
 | `artifact.kind` | 内容 |
 | --- | --- |
