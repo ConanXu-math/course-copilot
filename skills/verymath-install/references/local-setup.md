@@ -12,6 +12,8 @@ PDF 图像支持由 PDF.js 的可选依赖提供。可检查实际安装中的 p
 
 课件环境从 GET /api/agent/status 的 latex 读取，包括 ready、engine、missing、message。缺少 XeLaTeX 或宏包字体时，基础工作台仍能运行。用户需要课件时再按该列表补齐 TeX 环境；基础部署不默认下载体积很大的完整 TeX 发行版。Python、视频工具也按实际 Skill 需要安装。
 
+补齐 TeX 或视频工具后，必须重新读取 GET /api/agent/status 的 latex 字段，确认 ready 为 true 且 missing 为空，才能把课件环境说成就绪；中文字体（如 Fandol）缺失时尤其要核对是否在补装清单内。补齐失败或未重查时，只报告仍缺哪些及下一步，不声称已就绪。
+
 ## 正式启动
 
 默认在项目目录执行：
