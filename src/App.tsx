@@ -255,7 +255,7 @@ export default function App() {
       <button className="brand" onClick={()=>setShowBooks(true)} aria-label="打开课程书架"><span className="brand-mark"><LibraryBig size={23} strokeWidth={1.65}/></span><span className="brand-name">VeryMath<span>智慧教材</span></span></button>
       <div className="header-divider"/>
       <button className="current-course" onClick={()=>setShowBooks(true)}><BookOpen size={16}/><span>{book?.title || '我的课程'}</span><ChevronDown size={14}/></button>
-      <div className="header-actions"><span className="workspace-label"><span className={`status-dot ${workspace.saveError ? '' : 'online'}`}/>{workspace.saveError ? '未保存' : workspace.pending ? '正在保存…' : '已保存到本机'}</span><button className="text-button import-button" disabled={importing || busy || workspace.switching || moving} onClick={()=>fileInput.current?.click()}><Upload size={15}/><span>{importing ? '正在导入…' : '导入教材'}</span></button><button className="icon-button settings-button" title="工作区设置" aria-label="工作区设置" onClick={()=>setShowSettings(true)}><Settings2 size={19}/></button><span className="user-avatar" title="本地学习空间">我</span></div>
+      <div className="header-actions"><span className="workspace-label"><span className={`status-dot ${workspace.saveError ? '' : 'online'}`}/>{workspace.saveError ? '未保存' : workspace.pending ? '正在保存…' : '已保存到本机'}</span><button className="text-button import-button" disabled={importing || busy || workspace.switching || moving} onClick={()=>fileInput.current?.click()}><Upload size={15}/><span>{importing ? '正在导入…' : '导入教材'}</span></button><button className="icon-button settings-button" title="工作区设置" aria-label="工作区设置" onClick={()=>setShowSettings(true)}><Settings2 size={19}/></button></div>
       <input ref={fileInput} type="file" accept="application/pdf,.pdf" hidden onChange={event=>void importBook(event.target.files?.[0])}/>
     </header>
 
@@ -282,7 +282,7 @@ export default function App() {
           {outlineMode==='chapters' && !displayedChapters.length && <p className="outline-empty">{query?'没有找到相关章节':'这本 PDF 暂无内置目录，可使用页码翻阅。'}</p>}
           {outlineMode==='bookmarks' && !bookmarks.length && <p className="outline-empty">点击教材右上方的书签图标，收藏想要回看的页面。</p>}
         </div>
-        <div className="outline-bottom"><span className="book-format"><FileText size={15}/></span><button className="icon-button" onClick={()=>setShowHelp(true)} aria-label="使用帮助"><CircleHelp size={16}/></button></div>
+        <div className="outline-bottom"><button className="icon-button" onClick={()=>setShowHelp(true)} aria-label="使用帮助"><CircleHelp size={16}/></button></div>
       </aside>
 
       <main id="course-reading" className="reading-panel">
