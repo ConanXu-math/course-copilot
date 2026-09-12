@@ -145,16 +145,21 @@ async function relocateCourseOutputs(courseDir) {
   }
 }
 
-// 改写 .build/artifacts 与 conversations 里的 URL 到新路径。
-async function rewriteUrlsInJson(jsonPath) {
+// 改写 .build/artifacts 与 conversations 里的 URL 到新路径，并把 URL 内嵌的旧课程 id 换成当前 id。
+async function rewriteUrlsInJson(jsonPath, courseId) {
   const value = await readJson(jsonPath, null);
   if (!value || typeof value !== 'object') return;
   let changed = false;
   const fixUrl = (url) => {
     if (typeof url !== 'string' || !url.includes('/outputs/')) return url;
     const idx = url.indexOf('/outputs/');
+    const head = url.slice(0, idx);
+    let prefix = head;
+    const idMatch = /\/api\/courses\/([^/]+)$/.exec(head);
+    if (idMatch && idMatch[1] !== courseId) { prefix = head.slice(0, head.lastIndexOf('/api/courses/')) + `/api/courses/${courseId}`; changed = true; }
     const newRel = rewriteRel(url.slice(idx + '/outputs/'.length));
-    if (url.slice(idx) !== `/outputs/${newRel}`) { changed = true; return url.slice(0, idx) + `/outputs/${newRel}`; }
+    const expected = `${prefix}/outputs/${newRel}`;
+    if (url !== expected) { changed = true; return expected; }
     return url;
   };
   const walk = (node) => {
@@ -170,17 +175,17 @@ async function rewriteUrlsInJson(jsonPath) {
   if (changed && !dryRun) await writeFile(jsonPath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function rewriteCourseUrls(courseDir) {
+async function rewriteCourseUrls(courseDir, courseId) {
   const artifactsDir = join(courseDir, 'outputs', BUILD_ARTIFACTS);
   if (await isDir(artifactsDir)) {
     for (const f of await readdir(artifactsDir)) {
-      if (f.endsWith('.json')) await rewriteUrlsInJson(join(artifactsDir, f));
+      if (f.endsWith('.json')) await rewriteUrlsInJson(join(artifactsDir, f), courseId);
     }
   }
   const convDir = join(courseDir, 'conversations');
   if (await isDir(convDir)) {
     for (const f of await readdir(convDir)) {
-      if (f.endsWith('.json')) await rewriteUrlsInJson(join(convDir, f));
+      if (f.endsWith('.json')) await rewriteUrlsInJson(join(convDir, f), courseId);
     }
   }
 }
@@ -280,7 +285,7 @@ async function main() {
   for (const keeper of keepers) {
     console.log(`\n整理「${keeper.folder}」：`);
     await relocateCourseOutputs(keeper.courseDir);
-    await rewriteCourseUrls(keeper.courseDir);
+    await rewriteCourseUrls(keeper.courseDir, keeper.id);
     if (keeper.sha256) {
       const metaPath = join(keeper.courseDir, 'textbook', 'course.json');
       const meta = await readJson(metaPath, {});
