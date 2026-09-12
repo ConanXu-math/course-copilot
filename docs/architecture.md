@@ -154,7 +154,9 @@ ACP 模式将公共教学要求、教材上下文与本轮要求交给同一个�
 | `DELETE /api/courses/:id/references/:referenceId` | 删除资料目录；课程任务执行期间返回 409 |
 | `GET/HEAD /api/courses/:id/references/:referenceId/file` | 打开或下载原文件，支持范围请求 |
 
-`server/api.mjs` 在每次课程任务开始时读取辅助资料清单与本地路径，交给 `server/agent.mjs`。Agent 根据问题按需读取文件，引用时注明资料名称和该资料的页码。图谱的教材页码字段继续对应主教材。旧课程首次添加资料时创建 `references` 目录。
+`server/agent.mjs` 在自由问答、教材解析、讲解、出题、思维导图、知识图谱和视频任务中读取辅助资料清单与本地路径。Agent 根据问题按需读取文件，引用时注明资料名称和该资料的页码。图谱的教材页码字段继续对应主教材。旧课程首次添加资料时创建 `references` 目录。
+
+`skillId === 'slides'` 或 `artifact.kind === 'slides'` 的任务跳过辅助资料清单读取。通用 Agent 指令与课件 Skill 规定课件生成和修改禁止参考课程辅助资料，包含原文件、解析缓存和历史对话中的转述；该规则也适用于自由问答中的课件制作请求。课件按主教材和制作要求组织内容，修改时读取已有源码。
 
 连接接口包括 `POST /api/agent/connect`、`disconnect`、`login`、`login/cancel` 和 `PATCH /api/agent/config`。这些操作使用 JSON 请求体；配置仅写入个人 `settings.json` 的 `agent` 字段。
 

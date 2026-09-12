@@ -6,7 +6,7 @@ import { extname, resolve, sep } from 'node:path';
 import { codingAgent, getAgentStatus, getSkillAvailability, connectAgent, disconnectAgent, configureAgent, startAgentLogin, cancelAgentLogin } from './agent.mjs';
 export { disposeAgent } from './agent.mjs';
 import { handleCourseApi } from './course-api.mjs';
-import { createGeneratedArtifactSaver, getCoursePaths, getCourseReferences, outputUrl } from './course-store.mjs';
+import { createGeneratedArtifactSaver, getCoursePaths, outputUrl } from './course-store.mjs';
 import { slideTemplates } from './slide-templates.mjs';
 
 const pdfAssetsRoot = fileURLToPath(new URL('../node_modules/pdfjs-dist/', import.meta.url));
@@ -96,9 +96,8 @@ async function runAgent(req, res, request, skills) {
       'X-Accel-Buffering': 'no',
     });
     res.flushHeaders();
-    const references = await getCourseReferences(request.book.id);
     for await (const rawEvent of codingAgent(request, {
-      signal: controller.signal, ...paths, skills, references,
+      signal: controller.signal, ...paths, skills,
       ...saveGeneratedArtifact.knowledgeGraphContext,
       outputUrl: (filename) => outputUrl(request.book.id, filename),
     })) {
