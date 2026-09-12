@@ -35,11 +35,11 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 
 ### 方式一：让 Coding Agent 安装（推荐）
 
-把下面这段发给你使用的 Coding Agent，它会读取并执行仓库内的 [verymath-install Skill](../skills/verymath-install/SKILL.md)，自动完成依赖安装、内置课程 Skill 配置、Agent 连接和服务启动，最后给你访问地址：
+把下面这段发给你使用的 Coding Agent。它会拉取仓库，读取并执行仓库内的 [verymath-install 部署说明](../skills/verymath-install/SKILL.md)，自动完成依赖安装、内置课程 Skill 配置、Agent 连接和服务启动，最后给你访问地址：
 
 ```text
-https://github.com/ConanXu-math/course-copilot
-安装这个仓库的 verymath-install Skill，并按照它完成 VeryMath 智慧教材的本机部署：
+拉取 https://github.com/ConanXu-math/course-copilot，
+按仓库里的 skills/verymath-install/SKILL.md 完成 VeryMath 智慧教材的本机部署：
 检查并安装必要依赖，配置内置课程 Skill，连接我现有的 Agent，启动工作台并给我访问地址。
 ```
 

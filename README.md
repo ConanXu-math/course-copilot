@@ -42,12 +42,12 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 最省事的安装方式是把下面这段发给你使用的 Coding Agent，它会自动完成依赖安装、内置 Skill 配置、Agent 连接和服务启动，并返回访问地址：
 
 ```text
-https://github.com/ConanXu-math/course-copilot
-安装这个仓库的 verymath-install Skill，并按照它完成 VeryMath 智慧教材的本机部署：
+拉取 https://github.com/ConanXu-math/course-copilot，
+按仓库里的 skills/verymath-install/SKILL.md 完成 VeryMath 智慧教材的本机部署：
 检查并安装必要依赖，配置内置课程 Skill，连接我现有的 Agent，启动工作台并给我访问地址。
 ```
 
-部署入口是 [skills/verymath-install/SKILL.md](skills/verymath-install/SKILL.md)。需要账号登录时由使用者本人完成。
+部署步骤写在 [skills/verymath-install/SKILL.md](skills/verymath-install/SKILL.md)，Agent 拉取仓库后按这份说明执行即可。需要账号登录时由使用者本人完成。
 
 手动安装：在要部署的电脑上准备 Node.js 22.13 或更新版本，然后：
 
