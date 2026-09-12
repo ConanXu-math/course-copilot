@@ -163,9 +163,9 @@ export default function CourseReferences({ book, busy, onWorkingChange, selected
       <label className="reference-select"><input type="checkbox" checked={selected.some(reference => reference.id === item.id)} disabled={disabled || (selected.length >= 50 && !selected.some(reference => reference.id === item.id))} onChange={event => onSelect(event.target.checked ? [...selected, item] : selected.filter(reference => reference.id !== item.id))}/>选择《{item.title}》用于提问</label>
       <div className="reference-details"><span className="reference-format">{item.format.toUpperCase()}</span><h2>{item.title}</h2><p className="reference-meta">{item.filename} · {fileSize(item.size)} · {new Date(item.createdAt).toLocaleDateString('zh-CN')}</p>
         {item.description && <p className="reference-description">{item.description}</p>}
-        <p className="reference-text-status">{item.textIndex?.status === 'queued' ? '等待提取正文…' : item.textIndex?.status === 'processing' ? `正在提取正文：${item.textIndex.processedPages || 0}/${item.textIndex.totalPages || '…'}` : item.textIndex?.status === 'ready' ? '正文已提取，可全文搜索' : item.textIndex?.status === 'error' ? '正文提取失败' : '正文待提取'}{item.textIndex?.needsOcr ? ' · 部分页面可进行文字识别' : ''}</p>
+        {item.textIndex?.status !== 'ready' && <p className="reference-text-status">{item.textIndex?.status === 'queued' ? '等待提取正文…' : item.textIndex?.status === 'processing' ? `正在提取正文：${item.textIndex.processedPages || 0}/${item.textIndex.totalPages || '…'}` : item.textIndex?.status === 'error' ? '正文提取失败' : '正文待提取'}</p>}
         {item.textIndex?.message && <p className="reference-text-status" role={item.textIndex.status === 'error' ? 'alert' : undefined}>{item.textIndex.message}</p>}
-        {!['queued', 'processing'].includes(item.textIndex?.status || '') && <div className="reference-actions">
+        {!['queued', 'processing'].includes(item.textIndex?.status || '') && (item.textIndex?.status !== 'ready' || item.textIndex.needsOcr) && <div className="reference-actions">
           {item.textIndex?.status !== 'ready' && <button className="text-button" disabled={disabled} onClick={() => void extract(item, false)}>提取正文</button>}
           {['pdf', 'png', 'jpg', 'jpeg', 'webp'].includes(item.format) && <button className="text-button" disabled={disabled} onClick={() => void extract(item, true)}>识别扫描文字</button>}
         </div>}
