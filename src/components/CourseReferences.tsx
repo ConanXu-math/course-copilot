@@ -86,7 +86,7 @@ export default function CourseReferences({ book, busy, onWorkingChange }: {
       <button className="primary-button" disabled={disabled} onClick={() => input.current?.click()}>{working ? <LoaderCircle size={16} className="spin"/> : <Upload size={16}/>}添加资料</button>
       <input ref={input} type="file" multiple hidden accept=".pdf,.txt,.md,.docx,.pptx,.png,.jpg,.jpeg,.webp" onChange={event => void upload(Array.from(event.target.files || []))}/>
     </div>
-    <p className="references-formats">支持 PDF、TXT、Markdown、DOCX、PPTX、PNG、JPEG、WebP。每份最大 100 MiB（104857600 字节），可一次选择多份。</p>
+    <p className="references-formats">支持 PDF、TXT、Markdown、DOCX、PPTX、PNG、JPEG、WebP，可一次选择多份。</p>
     {error && <div className="references-error" role="alert"><AlertCircle size={17}/><span>{error}</span></div>}
     {notice && <p className="references-notice" role="status">{notice}</p>}
     <div className="references-summary"><span>{loading ? '正在读取资料…' : `${items.length} 份资料`}</span><button className="text-button" disabled={disabled} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={14}/>刷新</button></div>
