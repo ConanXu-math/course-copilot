@@ -111,9 +111,8 @@ export default function CopilotPanel(props: Props) {
 
     <div className="composer-area">
       {props.references.length > 0 && <div className="composer-references" aria-label="本轮参考的教材与资料">
-        <span>{textbookTask ? '当前任务依据主教材生成' : `本轮参考：教材 + ${props.references.length} 份辅助资料`}</span>
-        <div><BookOpen size={13}/><span title={book.title}>教材：{book.title}</span></div>
-        {!textbookTask && props.references.map(reference => <div key={reference.id}><FileText size={13}/><span title={reference.title}>{reference.title}</span><button className="icon-button" disabled={busy} aria-label={`移除资料 ${reference.title}`} onClick={() => props.onRemoveReference(reference.id)}><X size={13}/></button></div>)}
+        <span title={book.title}>教材</span>
+        {!textbookTask && <span title={props.references.map(reference => reference.title).join('\n')}>{props.references.length} 份资料</span>}
       </div>}
       {contextArtifact && <div className="selection-context artifact-context"><FileSliders size={14}/><span title={contextArtifact.title}>正在讨论：{contextArtifact.title}</span><button className="icon-button" onClick={props.onClearArtifact} aria-label="清除资料上下文"><X size={14}/></button></div>}
       {selectedText && <div className="selection-context"><Quote size={14}/><span>{selectedText}</span><button className="icon-button" onClick={props.onClearSelection} aria-label="清除选中内容"><X size={14}/></button></div>}
