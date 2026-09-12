@@ -18,7 +18,7 @@ const tools = [
 interface Props {
   book: Book; page: number; chapter?: Chapter; selectedText: string; onClearSelection: () => void;
   contextArtifact?: Artifact; onClearArtifact: () => void;
-  skills: SkillInfo[]; messages: Message[]; busy: boolean; onSend: (id: SkillId, prompt: string, scope: Scope, knowledgeGraphDetail?: KnowledgeGraphDetail, templateId?: string) => void;
+  skills: SkillInfo[]; messages: Message[]; busy: boolean; running: boolean; onSend: (id: SkillId, prompt: string, scope: Scope, knowledgeGraphDetail?: KnowledgeGraphDetail, templateId?: string) => void;
   onStop: () => void; onReset: () => void; onHistory: () => void; onArtifact: (artifact: Artifact) => void; onSettings: () => void;
 }
 
@@ -116,7 +116,7 @@ export default function CopilotPanel(props: Props) {
           <option value="book">整本教材</option><option value="selection" disabled={!selectedText}>选中内容</option>
         </select><ChevronDown size={12}/></label></div>
         <textarea ref={input} value={prompt} onChange={event => setPrompt(event.target.value)} placeholder={activeSkill === 'chat' ? '关于这本教材，你想了解什么？' : '补充你的要求…'} aria-label="向 Copilot 输入要求" rows={3} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}/>
-        <div className="composer-bottom"><span><CornerDownLeft size={12}/> 发送 <i>·</i> Shift + Enter 换行</span>{busy ? <button className="send-button" onClick={props.onStop} aria-label="停止任务"><Square size={15} fill="currentColor"/></button> : <button className="send-button" onClick={submit} disabled={!prompt.trim()} aria-label="发送要求" title={selectedInfo?.available ? '发送要求' : '此功能尚待接入'}><ArrowUp size={19}/></button>}</div>
+        <div className="composer-bottom"><span><CornerDownLeft size={12}/> 发送 <i>·</i> Shift + Enter 换行</span>{props.running ? <button className="send-button" onClick={props.onStop} aria-label="停止任务"><Square size={15} fill="currentColor"/></button> : <button className="send-button" onClick={submit} disabled={busy || !prompt.trim()} aria-label="发送要求" title={selectedInfo?.available ? '发送要求' : '此功能尚待接入'}><ArrowUp size={19}/></button>}</div>
       </div>
       <button className="connection-note" onClick={props.onSettings}><span className={`status-dot ${connectedCount ? 'online' : ''}`}/>{connectedCount ? `${connectedCount} 个工具已连接` : '学习工具待接入'}<span>查看连接<ArrowUpRight size={11}/></span></button>
     </div>

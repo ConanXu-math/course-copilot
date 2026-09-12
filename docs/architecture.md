@@ -144,6 +144,18 @@ ACP 模式将公共教学要求、教材上下文与本轮要求交给同一个�
 
 课程接口包括 `/api/storage`、`/api/settings`、`/api/courses`，以及 `/api/courses/:id/` 下的 `state`、`textbook`、`pages/:page`、`conversations`、`outputs/*`、`migrate`。`GET /api/agent/status` 返回 Agent 和 Skill 配置状态，`GET /api/skills` 返回按钮可用状态。
 
+辅助资料保存在课程目录的 `references/<资料ID>/`，包含原文件和 `metadata.json`。元数据记录 `id`、`title`、`filename`、`description`、`size`（字节）、`format` 和 `createdAt`。列表接口附加文件访问 `url`。
+
+| 辅助资料接口 | 用途 |
+| --- | --- |
+| `GET /api/courses/:id/references` | 列出当前课程的资料 |
+| `POST /api/courses/:id/references` | 上传原始文件，请求头 `X-Filename` 为经过 URL 编码的文件名 |
+| `PATCH /api/courses/:id/references/:referenceId` | 更新 `title` 和 `description` |
+| `DELETE /api/courses/:id/references/:referenceId` | 删除资料目录；课程任务执行期间返回 409 |
+| `GET/HEAD /api/courses/:id/references/:referenceId/file` | 打开或下载原文件，支持范围请求 |
+
+`server/api.mjs` 在每次课程任务开始时读取辅助资料清单与本地路径，交给 `server/agent.mjs`。Agent 根据问题按需读取文件，引用时注明资料名称和该资料的页码。图谱的教材页码字段继续对应主教材。旧课程首次添加资料时创建 `references` 目录。
+
 连接接口包括 `POST /api/agent/connect`、`disconnect`、`login`、`login/cancel` 和 `PATCH /api/agent/config`。这些操作使用 JSON 请求体；配置仅写入个人 `settings.json` 的 `agent` 字段。
 
 ## 后续开发方向

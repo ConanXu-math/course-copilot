@@ -276,6 +276,115 @@ export async function getCoursePaths(id) {
   };
 }
 
+const referenceExtensions = new Set(['.pdf', '.txt', '.md', '.docx', '.pptx', '.png', '.jpg', '.jpeg', '.webp']);
+const referenceLimit = 100 * 1024 * 1024;
+function referenceDirectoryName(id) {
+  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id)) fail(400, '辅助资料编号无效。');
+  return id;
+}
+function referenceInfo(courseId, metadata) {
+  return { ...metadata, url: `/api/courses/${encodeURIComponent(courseId)}/references/${metadata.id}/file` };
+}
+async function referenceRecord(record, referenceId) {
+  const path = await safePath(record.courseDir, 'references', referenceDirectoryName(referenceId));
+  const metadata = await readJson(resolve(path, 'metadata.json'));
+  if (!metadata) fail(404, '没有找到这份辅助资料。');
+  if (metadata.id !== referenceId || typeof metadata.filename !== 'string'
+      || basename(metadata.filename) !== metadata.filename || metadata.filename.includes('\\')
+      || !referenceExtensions.has(extname(metadata.filename).toLowerCase())) fail(400, '辅助资料记录格式不正确。');
+  return { path, metadata };
+}
+
+export async function listReferences(id) {
+  const record = await courseRecord(id);
+  const directory = await safePath(record.courseDir, 'references');
+  const entries = await readdir(directory, { withFileTypes: true }).catch(error => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  const references = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^[a-f0-9-]{36}$/.test(entry.name)) continue;
+    try {
+      const { metadata } = await referenceRecord(record, entry.name);
+      references.push(referenceInfo(id, metadata));
+    } catch (error) { if (error.status !== 404 && error.code !== 'ENOENT') throw error; }
+  }
+  return references.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+export async function importReference(id, stream, filename) {
+  const record = await courseRecord(id);
+  const name = basename(filename.replace(/\\/g, '/')).replace(/[\x00-\x1f]/g, '').trim();
+  if (!name || Buffer.byteLength(name) > 220 || !referenceExtensions.has(extname(name).toLowerCase())) {
+    fail(400, '请选择 PDF、TXT、Markdown、DOCX、PPTX 或 PNG、JPEG、WebP 图片，文件名最多 220 字节。');
+  }
+  return serial(id, async () => {
+    const referenceId = randomUUID();
+    const path = await makeDirectory(record.courseDir, 'references', referenceId);
+    let handle;
+    try {
+      handle = await open(resolve(path, name), 'wx', 0o600);
+      let size = 0;
+      let prefix = Buffer.alloc(0);
+      for await (const chunk of stream.iterator({ destroyOnReturn: false })) {
+        size += chunk.length;
+        if (size > referenceLimit) fail(413, '单份辅助资料最大 100 MiB（104857600 字节）。');
+        if (prefix.length < 5) prefix = Buffer.concat([prefix, chunk.subarray(0, 5 - prefix.length)]);
+        await handle.writeFile(chunk);
+      }
+      if (!size) fail(400, '辅助资料文件为空。');
+      if (extname(name).toLowerCase() === '.pdf' && prefix.toString('ascii') !== '%PDF-') fail(400, '请上传有效的 PDF 文件。');
+      await handle.close(); handle = undefined;
+      const metadata = { id: referenceId, title: name, filename: name, description: '', size,
+        format: extname(name).slice(1).toLowerCase(), createdAt: new Date().toISOString() };
+      await writeJson(resolve(path, 'metadata.json'), metadata);
+      return referenceInfo(id, metadata);
+    } catch (error) {
+      stream.resume();
+      await handle?.close().catch(() => {});
+      await rm(path, { recursive: true, force: true });
+      throw error;
+    }
+  });
+}
+
+export async function updateReference(id, referenceId, value) {
+  if (!object(value) || Object.keys(value).some(key => !['title', 'description'].includes(key))
+      || typeof value.title !== 'string' || !value.title.trim() || value.title.length > 200
+      || typeof value.description !== 'string' || value.description.length > 2000) fail(400, '请填写资料名称（最多 200 字符）和说明（最多 2000 字符）。');
+  const record = await courseRecord(id);
+  return serial(id, async () => {
+    const { path, metadata } = await referenceRecord(record, referenceId);
+    const updated = { ...metadata, title: value.title.trim(), description: value.description.trim() };
+    await writeJson(resolve(path, 'metadata.json'), updated);
+    return referenceInfo(id, updated);
+  });
+}
+
+export async function deleteReference(id, referenceId) {
+  const record = await courseRecord(id);
+  return serial(id, async () => {
+    if (generationSnapshots.get(id)?.size) fail(409, 'Agent 正在使用这门课程的资料，请在任务结束后删除。');
+    const { path } = await referenceRecord(record, referenceId);
+    await rm(path, { recursive: true });
+    return { deleted: true };
+  });
+}
+
+export async function getReferenceFile(id, referenceId) {
+  const record = await courseRecord(id);
+  const { path, metadata } = await referenceRecord(record, referenceId);
+  const file = await safePath(path, metadata.filename);
+  if (!(await stat(file)).isFile()) fail(404, '辅助资料文件不存在。');
+  return { path: file, filename: metadata.filename };
+}
+
+export async function getCourseReferences(id) {
+  const references = await listReferences(id);
+  return Promise.all(references.map(async item => ({ ...item, path: (await getReferenceFile(id, item.id)).path })));
+}
+
 function outputRelative(filename) {
   if (typeof filename !== 'string' || !filename || filename.includes('\\') || filename.includes('\0')
       || filename.split('/').some((part) => !part || part === '.' || part === '..') || isAbsolute(filename)) {

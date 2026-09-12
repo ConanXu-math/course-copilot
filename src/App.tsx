@@ -10,6 +10,7 @@ import TextbookReader from './components/TextbookReader';
 import CopilotPanel from './components/CopilotPanel';
 import ArtifactViewer, { MaterialsLibrary } from './components/ArtifactViewer';
 import AgentConnection from './components/AgentConnection';
+import CourseReferences from './components/CourseReferences';
 import { useColumnWidths } from './components/ColumnResizers';
 
 type ReaderSection = 'materials' | 'mindmaps' | 'knowledge-graphs' | 'quizzes' | 'slides';
@@ -57,7 +58,9 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<ConversationInfo[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [agentBusy, setBusy] = useState(false);
+  const [referencesWorking, setReferencesWorking] = useState(false);
+  const busy = agentBusy || referencesWorking;
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState('');
   const controller = useRef<AbortController | null>(null);
@@ -281,6 +284,7 @@ export default function App() {
         <div className="reading-tabs" aria-label="教材与学习资料">
           <button className="icon-button outline-open-button" aria-label="展开教材目录" onClick={()=>setOutlineOpen(!outlineOpen)}><PanelLeft size={17}/></button>
           <button className={`reading-tab ${activeTab==='textbook'?'active':''}`} onClick={()=>setActiveTab('textbook')}><BookOpen size={16}/>教材</button>
+          <button className={`reading-tab ${activeTab==='references'?'active':''}`} onClick={()=>{setActiveTab('references');setContextArtifactId(null);}}><LibraryBig size={16}/>辅助资料</button>
           <button className={`reading-tab ${activeTab==='materials'?'active':''}`} onClick={()=>setActiveTab('materials')}><FolderOpen size={16}/>学习资料<span className="count-badge">{artifacts.filter(item=>!Object.values(sectionKinds).includes(item.kind as SectionKind)).length}</span></button>
           <button className={`reading-tab ${activeTab==='mindmaps'?'active':''}`} onClick={()=>setActiveTab('mindmaps')}><Waypoints size={16}/>思维导图<span className="count-badge">{artifacts.filter(item=>item.kind==='mindmap').length}</span></button>
           <button className={`reading-tab ${activeTab==='knowledge-graphs'?'active':''}`} onClick={()=>setActiveTab('knowledge-graphs')}><Network size={16}/>知识图谱<span className="count-badge">{artifacts.filter(item=>item.kind==='knowledge-graph').length}</span></button>
@@ -291,6 +295,7 @@ export default function App() {
         </div>
         {book ? <>
           <div className={`reader-mount ${activeTab==='textbook'?'':'hidden'}`}><TextbookReader book={book} page={page} navigationId={pageNavigationId} onPageChange={goToPage} onVisiblePageChange={visiblePageChanged} onDocumentReady={documentReady} onTextChange={textReady} onSelectionChange={selectionReady}/></div>
+          <div className={`reader-mount ${activeTab==='references'?'':'hidden'}`}><CourseReferences key={book.id} book={book} busy={agentBusy || workspace.switching || moving || importing} onWorkingChange={setReferencesWorking}/></div>
           {(['materials','mindmaps','knowledge-graphs','quizzes','slides'] as ReaderSection[]).includes(activeTab as ReaderSection) && <MaterialsLibrary artifacts={artifacts} kind={sectionKind(activeTab as ReaderSection)} excludeKinds={activeTab==='materials'?Object.values(sectionKinds):undefined} book={book} onOpen={openArtifact}/>}
           {activeArtifact && <ArtifactViewer key={activeArtifact.id} artifact={activeArtifact} onPage={goToPage} book={book} onQuizAction={busy || workspace.switching || moving ? undefined : (question, answer, action) => {
             setContextArtifactId(activeArtifact.id);
@@ -302,7 +307,7 @@ export default function App() {
         </> : <div className="boot-state">{bootError ? <><BookOpen size={36}/><h2>先打开一本教材</h2><p>{bootError}</p><button className="primary-button" onClick={()=>fileInput.current?.click()}><Upload size={16}/>导入 PDF</button></> : <><LoaderCircle className="spin" size={28}/><p>正在准备你的课程空间…</p></>}</div>}
       </main>
 
-      {book && <CopilotPanel book={book} page={page} chapter={chapter} selectedText={selectedText} onClearSelection={clearSelection} contextArtifact={contextArtifact} onClearArtifact={()=>setContextArtifactId(null)} skills={skills} messages={messages} busy={busy || workspace.switching || moving} onSend={sendSkill} onStop={stopTask} onReset={()=>void newConversation()} onHistory={()=>void openHistory()} onArtifact={openArtifact} onSettings={()=>setShowSettings(true)}/>}
+      {book && <CopilotPanel book={book} page={page} chapter={chapter} selectedText={selectedText} onClearSelection={clearSelection} contextArtifact={contextArtifact} onClearArtifact={()=>setContextArtifactId(null)} skills={skills} messages={messages} busy={busy || workspace.switching || moving} running={agentBusy} onSend={sendSkill} onStop={stopTask} onReset={()=>void newConversation()} onHistory={()=>void openHistory()} onArtifact={openArtifact} onSettings={()=>setShowSettings(true)}/>}
     </div>
 
     <dialog className="settings-dialog" ref={settingsDialog} onCancel={()=>setShowSettings(false)} onClick={event=>{if(event.target===event.currentTarget)setShowSettings(false);}}>

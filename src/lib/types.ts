@@ -74,6 +74,17 @@ export interface PersonalSettings {
   columnWidths?: { sidebar?: number; copilot?: number };
 }
 
+export interface CourseReference {
+  id: string;
+  title: string;
+  filename: string;
+  description: string;
+  size: number;
+  format: string;
+  createdAt: string;
+  url: string;
+}
+
 export interface StorageInfo { directory: string; settings: PersonalSettings }
 
 export interface ReadingState {
