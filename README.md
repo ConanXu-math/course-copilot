@@ -31,6 +31,7 @@ Coding Agent：理解要求 → 读取教材 → 调用一个或多个 Skill
 | Codex | [安装 Codex CLI](https://developers.openai.com/codex/cli/) |
 | Claude Code | [安装 Claude Code](https://code.claude.com/docs/en/setup) |
 | OpenCode | [安装 OpenCode](https://opencode.ai/docs/) |
+| DSH（DeepSeek Harness） | [安装 DSH](https://github.com/deepseek-ai/deepseek-harness) |
 | Cursor / Gemini CLI / Copilot CLI / Qwen Code / Kimi Code / Kiro CLI | 各自官方安装后在「工作区设置」选择 |
 
 无需安装全部，选一种即可。Codex 与 Claude 的 ACP 适配器随项目依赖安装；其余 Agent 自动查找本机程序。
