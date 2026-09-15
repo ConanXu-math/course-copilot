@@ -22,6 +22,7 @@ Codex 与 Claude 的 ACP 适配器作为项目依赖安装，不需要再手动�
 | [Qwen Code](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/) | `qwen --acp` |
 | [Kimi Code](https://moonshotai.github.io/kimi-cli/en/reference/kimi-acp.html) | `kimi acp` |
 | [Kiro CLI](https://kiro.dev/docs/cli/acp/) | `kiro-cli acp` |
+| [DSH](https://github.com/deepseek-ai/deepseek-harness) | `dsh --profile acp` |
 
 除项目自带的适配器外，其他 Agent 的 CLI 需安装在部署电脑上。预设来自相应接口说明，不代表所有版本和账号都已逐一验证；旧版程序的参数可在高级设置中调整。
 

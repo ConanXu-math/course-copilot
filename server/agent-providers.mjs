@@ -32,6 +32,7 @@ export const agents = {
   qwen: { name: 'Qwen Code', connections: { acp: acp('qwen', ['--acp']) } },
   kimi: { name: 'Kimi Code', connections: { acp: acp('kimi', ['acp'], { loginArgs: ['login'] }) } },
   kiro: { name: 'Kiro CLI', connections: { acp: acp('kiro-cli', ['acp'], { loginArgs: ['login'] }) } },
+  dsh: { name: 'DSH', connections: { acp: acp('dsh', ['--profile', 'acp']) } },
   custom: { name: '自定义 Agent', connections: {
     acp: acp(''), cli: { command: '', args: [], Client: CommandClient },
   } },
